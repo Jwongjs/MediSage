@@ -122,7 +122,7 @@ async def run_medical_report(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@diagnosis_router.post("/patient/export_report")
+@diagnosis_router.post("/patient/export_report", dependencies=[Depends(require_privacy_policy)])
 async def export_report_file(
     request: Request,
     session_id: str = Form(...),
