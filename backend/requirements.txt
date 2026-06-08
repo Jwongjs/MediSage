@@ -5,6 +5,8 @@ requests
 aiofiles
 langchain
 langgraph
+langgraph-checkpoint-postgres
+google-generativeai
 pydantic
 supabase
 PyJWT
