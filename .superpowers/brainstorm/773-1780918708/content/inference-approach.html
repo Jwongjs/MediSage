@@ -1,0 +1,72 @@
+<h2>SP1 — Q1: Where should the LLM run in production?</h2>
+<p class="subtitle">The local Llama 3.1-8B GGUF must go. What replaces it?</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Managed Cloud API</h3>
+      <p><strong>Claude (Anthropic) · OpenAI GPT-4o · Gemini</strong></p>
+      <p>Call an API per request. No GPU, no server management. Pay per token.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Zero infra to manage</li>
+          <li>Instant horizontal scale</li>
+          <li>Best model quality</li>
+          <li>Simple Docker image (no CUDA)</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>PHI leaves your server — BAA required</li>
+          <li>Per-token cost at scale</li>
+          <li>Latency depends on provider</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Private GPU VPS / Serverless Inference</h3>
+      <p><strong>RunPod · Modal · Together.ai · Replicate</strong></p>
+      <p>Your own GPU endpoint running an open-source model. Data stays on your infra.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>PHI stays on your infra</li>
+          <li>No BAA needed with provider</li>
+          <li>Cost-effective at volume</li>
+          <li>Full model control</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>GPU rental cost (~$0.20–0.50/hr)</li>
+          <li>Cold-start latency on serverless</li>
+          <li>More infra to manage</li>
+          <li>Model quality vs GPT-4o gap</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Hybrid: Cloud API + Local EfficientNet</h3>
+      <p><strong>Claude/OpenAI for LLM · EfficientNet stays containerized</strong></p>
+      <p>Cloud API handles all text reasoning. EfficientNet skin classifier stays in a sidecar container (only ~50MB, no GGUF).</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Best reasoning quality</li>
+          <li>EfficientNet is lightweight (~50MB)</li>
+          <li>Realistic portfolio architecture</li>
+          <li>Simple Docker image for LLM service</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>Text PHI still goes to API provider (BAA needed)</li>
+          <li>Two inference paths to maintain</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:1.5rem">My recommendation: <strong>C (Hybrid)</strong> — cloud API for reasoning quality + EfficientNet local since it's tiny and already trained. BAA with Anthropic/OpenAI is free for developer accounts.</p>

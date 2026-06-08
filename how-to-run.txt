@@ -1,0 +1,154 @@
+## 🚀 **Complete Startup Process**
+
+### **0. Download Required AI Model** (First Time Setup!)
+Before starting the backend, you need to download the required AI model:
+
+**Download from Hugging Face:**
+1. **Direct Download**: Visit https://huggingface.co/mradermacher/Llama-3.1-8B-UltraMedical-GGUF
+   - Click "Download" button to save the file
+
+2. **Place the model file:**
+- Download: `Llama-3.1-8B-UltraMedical.Q8_0.gguf` (8GB+)
+- Place in: `backend/ai_models/Llama-3.1-8B-UltraMedical.Q8_0.gguf`
+
+
+⚠️ **Important**: The backend will NOT start without this model file!
+
+### **1. Start Backend First** (Required!)
+```bash
+# Terminal 1 - Backend
+cd backend
+python main.py
+```
+**Output should show:**
+```
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+🔌 WebSocket endpoint available at: /ws/{session_id}
+```
+
+### **2. Start Frontend Second**
+```bash
+# Terminal 2 - Frontend (NEW terminal window)
+cd frontend
+npm install  # First time only
+npm run dev
+```
+**Output should show:**
+```
+- ready started server on 0.0.0.0:3000, url: http://localhost:3000
+```
+
+## 🔧 **Why Both Are Needed:**
+
+### **Backend (`python main.py`):**
+- ✅ **Runs your LangGraph workflow** (the AI medical diagnosis)
+- ✅ **Hosts WebSocket endpoints** (`/ws/{session_id}`)
+- ✅ **Serves API endpoints** (`/patient/diagnose_patient_realtime`)
+- ✅ **Processes medical data** with your local models
+
+### **Frontend (`npm run dev`):**
+- ✅ **Serves the React/Next.js web interface**
+- ✅ **Connects to backend WebSocket** for real-time updates
+- ✅ **Sends user input** to backend API
+- ✅ **Displays progress and results**
+
+## 🌐 **Architecture Flow:**
+
+```
+User Browser (localhost:3000)
+       ↕ HTTP/WebSocket
+FastAPI Backend (localhost:8000)
+       ↕
+LangGraph Workflow + Local Models
+```
+
+## 🎯 **Quick Test:**
+
+1. **Start backend:** `python main.py` (Terminal 1)
+2. **Start frontend:** `npm run dev` (Terminal 2)  
+3. **Open browser:** `http://localhost:3000/test`
+4. **Check connection:** Should show "WebSocket: Connected"
+5. **Test diagnosis:** Enter symptoms → Start AI Diagnosis
+
+## ❌ **Common Issues:**
+
+### **If WebSocket shows "Disconnected":**
+- ✅ Make sure backend is running on port 8000
+- ✅ Check `.env.local` has correct URLs:
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_WS_URL=ws://localhost:8000
+```
+
+### **If "Connection Refused" error:**
+- ✅ Backend not started yet
+- ✅ Wrong port (should be 8000 for backend, 3000 for frontend)
+
+## 💡 **Pro Tip - Development Workflow:**
+
+Create a startup script:
+
+### **Windows (start.bat):**
+```batch
+@echo off
+echo Starting Medical AI Platform...
+start cmd /k "cd backend && python main.py"
+timeout /t 3
+start cmd /k "cd frontend && npm run dev"
+echo Both services starting...
+echo Backend: http://localhost:8000
+echo Frontend: http://localhost:3000
+```
+
+### **Mac/Linux (start.sh):**
+```bash
+#!/bin/bash
+echo "Starting Medical AI Platform..."
+
+# Start backend in background
+cd backend && python main.py &
+BACKEND_PID=$!
+
+# Wait for backend to start
+sleep 3
+
+# Start frontend
+cd ../frontend && npm run dev &
+FRONTEND_PID=$!
+
+echo "Backend PID: $BACKEND_PID (http://localhost:8000)"
+echo "Frontend PID: $FRONTEND_PID (http://localhost:3000)"
+echo "Press Ctrl+C to stop both services"
+
+# Wait for user interrupt
+wait
+```
+
+## 🔍 **Health Check:**
+
+### **1. Backend Health:**
+Visit: `http://localhost:8000/health`
+Should return:
+```json
+{
+  "status": "healthy",
+  "service": "AI Medical Diagnosis API",
+  "features": {
+    "realtime_websocket": true,
+    "active_connections": 0
+  }
+}
+```
+
+### **2. Frontend Health:**
+Visit: `http://localhost:3000`
+Should show your landing page
+
+### **3. Full Integration Test:**
+Visit: `http://localhost:3000/test`
+Should show:
+- ✅ "WebSocket: Connected" 
+- ✅ Diagnosis form ready
+- ✅ Real-time progress capabilities
+
+**Both services must run simultaneously for the WebSocket real-time features to work!** 🏥⚡

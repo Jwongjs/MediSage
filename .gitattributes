@@ -1,0 +1,1 @@
+backend/ai_models/skin_lesion_efficientnetb0.pth filter=lfs diff=lfs merge=lfs -text

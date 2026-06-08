@@ -1,0 +1,2 @@
+1) Lazy Loading: To optimize the most minimum output of the LLM on every stage 
+2) Singleton model manager: To ensure each model is loaded exactly once and shared efficiently across the entire application

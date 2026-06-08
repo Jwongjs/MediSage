@@ -1,0 +1,4 @@
+*In advanced settings -> performance -> advanced tab -> pagefile*
+Custom Size:
+	Initial Size (MB): 21137
+	Maximum Size (MB): 34000
