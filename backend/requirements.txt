@@ -2,20 +2,15 @@ fastapi
 uvicorn
 python-dotenv
 requests
-pillow
-asyncio
 aiofiles
 langchain
 langgraph
 pydantic
-llama-cpp-python[cublas]  # GPU-enabled version for NVIDIA GPUs
-transformers
-torch
-torchvision
-sentence-transformers
-scikit-learn
-scipy
-numpy<2.0  # NumPy 1.x for compatibility
-google-maps-services
-reportlab==4.0.4      # PDF generation
-python-docx==1.1.0    # Word document generation
+supabase
+PyJWT
+openai>=1.0.0
+reportlab==4.0.4
+python-docx==1.1.0
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+httpx
