@@ -8,7 +8,6 @@ from typing import Optional
 import json
 
 from nodes import MedicalReportNode
-from managers.model_manager import model_manager
 
 
 # --- Configuration & Setup ---
@@ -40,17 +39,7 @@ class UserUpdate(BaseModel):
     age: str
     gender: str
     
-medical_report_node = None
-
-def get_medical_report_node():
-    """Get or create medical report node with loaded adapter"""
-    global medical_report_node
-    if medical_report_node is None:
-        adapter = model_manager.get_local_adapter()
-        if adapter is None:
-            raise HTTPException(status_code=503, detail="Models not loaded yet")
-        medical_report_node = MedicalReportNode(adapter, supabase)
-    return medical_report_node
+report_node = MedicalReportNode(supabase)
 
 # --- Helper to set auth cookie ---
 def set_auth_cookie(response: Response, user_data: dict):
@@ -237,6 +226,45 @@ def get_current_user(request: Request):  #Removed async
         print(f"JWT decode error: {e}")
         return None
 
+
+async def require_privacy_policy(request: Request):
+    """FastAPI dependency: 401 if unauthenticated, 403 if privacy policy not accepted."""
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    try:
+        result = supabase.table("user_profiles") \
+            .select("privacy_policy_accepted") \
+            .eq("id", user["id"]) \
+            .single() \
+            .execute()
+
+        if not result.data or not result.data.get("privacy_policy_accepted"):
+            raise HTTPException(status_code=403, detail="privacy_policy_required")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=403, detail="privacy_policy_required")
+
+
+@router.patch("/accept-privacy-policy")
+async def accept_privacy_policy(request: Request):
+    """Mark the current user's privacy_policy_accepted flag as true."""
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    try:
+        supabase.table("user_profiles") \
+            .update({"privacy_policy_accepted": True}) \
+            .eq("id", user["id"]) \
+            .execute()
+        return {"message": "Privacy policy accepted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/patient/profile")
 async def get_session(request: Request):
     user = get_current_user(request)
@@ -334,8 +362,7 @@ async def get_user_medical_reports(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     
     try:
-        node = get_medical_report_node()
-        reports = await node.get_user_medical_reports(
+        reports = await report_node.get_user_medical_reports(
             user["id"], limit, offset
         )
         return {
@@ -358,8 +385,7 @@ async def get_medical_report(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     
     try:
-        node = get_medical_report_node()
-        report = await node.get_medical_report_by_id(
+        report = await report_node.get_medical_report_by_id(
             report_id, user["id"]
         )
         if not report:
@@ -385,8 +411,7 @@ async def save_medical_report(
         agent_state_dict = json.loads(agent_state)
         
         # Save report using the integrated node
-        node = get_medical_report_node()
-        saved_report = await node.save_medical_report_to_database(
+        saved_report = await report_node.save_medical_report_to_database(
             user["id"],
             session_id,
             agent_state_dict,
@@ -412,8 +437,7 @@ async def delete_medical_report(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     
     try:
-        node = get_medical_report_node()
-        success = await node.delete_medical_report(
+        success = await report_node.delete_medical_report(
             report_id, user["id"]
         )
         if not success:
@@ -434,8 +458,7 @@ async def update_report_title(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     
     try:
-        node = get_medical_report_node()
-        updated_report = await node.update_report_title(
+        updated_report = await report_node.update_report_title(
             report_id, user["id"], new_title
         )
         if not updated_report:

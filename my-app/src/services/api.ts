@@ -6,6 +6,13 @@ export interface DiagnosisRequest {
   location?: { lat: number; lng: number };
 }
 
+export class PrivacyPolicyRequiredError extends Error {
+  constructor() {
+    super('privacy_policy_required');
+    this.name = 'PrivacyPolicyRequiredError';
+  }
+}
+
 export class ApiService {
   
   // Test backend connection
@@ -45,6 +52,7 @@ export class ApiService {
 
       const response = await fetch(`${API_BASE_URL}/patient/textual_analysis`, {
         method: 'POST',
+        credentials: 'include',
         body: formData
       });
 
@@ -55,6 +63,13 @@ export class ApiService {
       console.log('  Response URL:', response.url);
       console.log('  Response Type:', response.type);
       console.log('  Response Headers:', Object.fromEntries(response.headers.entries()));
+
+      if (response.status === 403) {
+        const body = await response.json().catch(() => ({}));
+        if (body.detail === 'privacy_policy_required') {
+          throw new PrivacyPolicyRequiredError();
+        }
+      }
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -87,44 +102,26 @@ export class ApiService {
 
       const response = await fetch(`${API_BASE_URL}/patient/followup_questions`, {
         method: 'POST',
+        credentials: 'include',
         body: formData
       });
+
+      if (response.status === 403) {
+        const body = await response.json().catch(() => ({}));
+        if (body.detail === 'privacy_policy_required') {
+          throw new PrivacyPolicyRequiredError();
+        }
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Follow-up questions failed: HTTP ${response.status} - ${errorText}`);
+      }
 
       return await response.json();
 
     } catch (error) {
       console.error('❌ Follow-up questions failed:', error);
-      throw error;
-    }
-  }
-
-  //NODE 3: Image analysis
-  static async runImageAnalysis(sessionId: string, previousState: any, image?: File): Promise<any> {
-    try {
-      const formData = new FormData();
-      formData.append('session_id', sessionId);
-      formData.append('previous_state', JSON.stringify(previousState));
-      
-      if (image) {
-        formData.append('image_file', image);
-      }
-
-      console.log('📸 Running image analysis:', { sessionId, hasImage: !!image });
-
-      const response = await fetch(`${API_BASE_URL}/patient/image_analysis`, {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Image analysis failed: HTTP ${response.status} - ${errorText}`);
-      }
-
-      return await response.json();
-
-    } catch (error) {
-      console.error('❌ Image analysis failed:', error);
       throw error;
     }
   }
@@ -140,8 +137,16 @@ export class ApiService {
 
       const response = await fetch(`${API_BASE_URL}/patient/overall_analysis`, {
         method: 'POST',
+        credentials: 'include',
         body: formData
       });
+
+      if (response.status === 403) {
+        const body = await response.json().catch(() => ({}));
+        if (body.detail === 'privacy_policy_required') {
+          throw new PrivacyPolicyRequiredError();
+        }
+      }
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -167,8 +172,16 @@ export class ApiService {
 
       const response = await fetch(`${API_BASE_URL}/patient/medical_report`, {
         method: 'POST',
+        credentials: 'include',
         body: formData
       });
+
+      if (response.status === 403) {
+        const body = await response.json().catch(() => ({}));
+        if (body.detail === 'privacy_policy_required') {
+          throw new PrivacyPolicyRequiredError();
+        }
+      }
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -183,7 +196,17 @@ export class ApiService {
     }
   }
   
-    //PDF/Word generation 
+  static async acceptPrivacyPolicy(): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/auth/accept-privacy-policy`, {
+      method: 'PATCH',
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to accept privacy policy: HTTP ${response.status}`);
+    }
+  }
+
+    //PDF/Word generation
   static async exportMedicalReport(
     sessionId: string, 
     format: 'pdf' | 'word', 

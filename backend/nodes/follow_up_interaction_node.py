@@ -1,14 +1,9 @@
-from ray import state
-from adapters.local_model_adapter4 import LocalModelAdapter
 from typing import Dict, Any, List
 import re
+from llm.client import llm_client
 
-#followup_response contain both qna pairs, the parsing is used to combine initial user input and structured qna 
-#for context later (followup_qna_overall)
 
 class FollowUpInteractionNode:
-    def __init__(self, adapter: LocalModelAdapter):
-        self.adapter = adapter
         
     async def __call__(self, state):
         return await self.handle_followup_interaction(state)
@@ -111,17 +106,22 @@ class FollowUpInteractionNode:
             
             state["skin_cancer_risk_metrics"] = risk_metrics # store context information for overall analysis later 
             
-            if needs_image_analysis: ## skin cancer screening only
-                print("🔍 SKIN CANCER RISK DETECTED - proceeding to image analysis")
-                state["image_required"] = True
+            if needs_image_analysis:  # high ABCDE risk — route directly to overall analysis
+                print("HIGH ABCDE RISK DETECTED — routing to overall analysis")
+                state["image_required"] = False
                 state["skin_cancer_risk_detected"] = True
-                state["current_workflow_stage"] = "awaiting_image_upload"
-                
-                enhanced_diagnosis = [
-                    {"text_diagnosis": "Skin Cancer Risk Detected - Image Analysis Required", "diagnosis_confidence": None}
+                state["current_workflow_stage"] = "followup_analysis_complete"
+                state["requires_user_input"] = False
+
+                state["followup_diagnosis"] = [
+                    {"text_diagnosis": "High-risk skin lesion features detected (ABCDE criteria)", "diagnosis_confidence": 0.0}
                 ]
-                state["followup_diagnosis"] = enhanced_diagnosis
-                
+
+                workflow_path = state.get("workflow_path", [])
+                if "skin_cancer_high_risk" not in workflow_path:
+                    workflow_path.append("skin_cancer_high_risk")
+                state["workflow_path"] = workflow_path
+
                 return state
             else: ## skin cancer screening -> standard follow-up
                 print("✅ Low skin cancer risk - transitioning to standard follow-up")
@@ -149,9 +149,27 @@ class FollowUpInteractionNode:
             state["skin_cancer_risk_detected"] = False
             state["requires_user_input"] = False
                
-            # Get Q8 model for re-diagnosis
-            print(f"🔄 Generating standard follow-up diagnosis with enhanced symptoms...")
-            output = await self.adapter.generate_diagnosis(enhanced_symptoms)
+            print(f"Generating standard follow-up diagnosis with enhanced symptoms...")
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an AI medical assistant. Provide accurate, structured responses. "
+                        "Always follow the exact format requested. Be concise and professional."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"Symptoms: {enhanced_symptoms}\n"
+                        "List 5 most possible diagnoses in this exact format ONLY:\n"
+                        "- Diagnosis: <name>\n"
+                        "- Confidence: <0.0-1.0>\n\n"
+                        "Repeat for each diagnosis. List from most likely to least likely."
+                    ),
+                },
+            ]
+            output = await llm_client.complete(messages, max_tokens=300, temperature=0.1)
 
             # Parse results using the same parser as LLMDiagnosisNode
             from nodes.llm_diagnosis_node import parse_diagnosis_details

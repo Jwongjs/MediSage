@@ -15,7 +15,7 @@ interface WorkflowRouterProps {
   workflowInfo?: any | null;
   onStartDiagnosis: (symptoms: string) => Promise<void>;
   onSubmitFollowUp: (responses: Record<string, string>) => Promise<void>;
-  onSubmitImage: (image: File) => Promise<void>;
+  onSubmitImage?: (image: File) => Promise<void>;
   onReset: () => void;
   onContinue: () => void; 
 }
@@ -102,7 +102,7 @@ export const WorkflowRouter: React.FC<WorkflowRouterProps> = ({
         <ImageAnalysisPage
           workflowState={workflowState}
           loading={loading}
-          onSubmitImage={onSubmitImage} 
+          onSubmitImage={onSubmitImage ?? (() => Promise.resolve())}
           onReset={onReset}
           onContinue={onContinue}
         />

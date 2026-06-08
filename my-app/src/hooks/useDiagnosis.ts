@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { AgentState } from 'types/medical';
-import { ApiService, DiagnosisRequest } from 'services/api';
+import { ApiService, DiagnosisRequest, PrivacyPolicyRequiredError } from 'services/api';
 
 interface DiagnosisState {
   loading: boolean;
@@ -11,6 +11,7 @@ interface DiagnosisState {
   sessionId: string | null;
   currentStage: string | null;
   workflowInfo: any | null;
+  privacyPolicyPending: (() => Promise<void>) | null;
 }
 
 export const useDiagnosis = () => {
@@ -19,8 +20,9 @@ export const useDiagnosis = () => {
     result: null,
     error: null,
     sessionId: null,
-    currentStage: null, 
-    workflowInfo: null
+    currentStage: null,
+    workflowInfo: null,
+    privacyPolicyPending: null,
   });
 
   //STATE ACCESSORS - prevent undefined errors
@@ -54,11 +56,6 @@ export const useDiagnosis = () => {
   const getSkinCancerRiskDetected = useCallback(() => {
     const result = getResult();
     return result?.skin_cancer_risk_detected || false;
-  }, [getResult]);
-
-  const getImageRequired = useCallback(() => {
-    const result = getResult();
-    return result?.image_required || false;
   }, [getResult]);
 
   //STATE VALIDATION
@@ -114,12 +111,19 @@ export const useDiagnosis = () => {
       return response;
 
     } catch (error) {
+      if (error instanceof PrivacyPolicyRequiredError) {
+        setState(prev => ({
+          ...prev,
+          loading: false,
+          privacyPolicyPending: async () => {
+            setState(p => ({ ...p, privacyPolicyPending: null }));
+            await startDiagnosis(request);
+          },
+        }));
+        return;
+      }
       const errorMessage = error instanceof Error ? error.message : 'Diagnosis failed';
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        error: errorMessage
-      }));
+      setState(prev => ({ ...prev, loading: false, error: errorMessage }));
       throw error;
     }
   }, []);
@@ -156,53 +160,19 @@ export const useDiagnosis = () => {
       return response;
 
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Follow-up failed';
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        error: errorMessage
-      }));
-      throw error;
-    }
-  }, [validateActiveSession]);
-
-  //NODE 3: Image analysis
-  const submitImageAnalysis = useCallback(async (image?: File) => {
-    const { sessionId, result } = validateActiveSession();
-
-    setState(prev => ({ ...prev, loading: true, error: null }));
-
-    try {
-      const response = await ApiService.runImageAnalysis(
-        sessionId,
-        result,
-        image
-      );
-      
-      console.log('📸 Image analysis response:', response);
-      
-      //Validate response structure
-      if (!response || !response.result) {
-        throw new Error('Invalid response from image analysis');
+      if (error instanceof PrivacyPolicyRequiredError) {
+        setState(prev => ({
+          ...prev,
+          loading: false,
+          privacyPolicyPending: async () => {
+            setState(p => ({ ...p, privacyPolicyPending: null }));
+            await submitFollowUp(responses);
+          },
+        }));
+        return;
       }
-      
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        result: response.result,
-        currentStage: response.result?.current_workflow_stage || prev.currentStage,
-        workflowInfo: response.workflow_info || null
-      }));
-
-      return response;
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Image analysis failed';
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        error: errorMessage
-      }));
+      const errorMessage = error instanceof Error ? error.message : 'Follow-up failed';
+      setState(prev => ({ ...prev, loading: false, error: errorMessage }));
       throw error;
     }
   }, [validateActiveSession]);
@@ -369,17 +339,6 @@ export const useDiagnosis = () => {
     // STAGE-BASED WORKFLOW PROGRESSION (ORDERED)
     // ============================================
 
-    //Handle image analysis completion FIRST
-    if (currentStage === 'image_analysis_complete') {
-      console.log('📸 Image analysis complete - proceeding to overall analysis...');
-      try {
-        return await runOverallAnalysis();
-      } catch (error) {
-        console.error('❌ Overall analysis failed:', error);
-        throw error;
-      }
-    }
-
     // ============================================
     // FOLLOW-UP COMPLETION LOGIC
     // ============================================
@@ -391,11 +350,7 @@ export const useDiagnosis = () => {
         return { needsFollowUpQuestions: true };
       }
 
-      // Check for skin cancer risk detection
-      if (skinCancerRiskDetected) {
-        console.log('🩺 Skin cancer risk detected - should already be transitioning to image analysis...');
-        return { needsImageUpload: true };
-      } else {
+      {
         // No skin cancer risk - proceed to overall analysis
         console.log('✅ Follow-up completed without skin cancer risk - proceeding to overall analysis...');
         try {
@@ -503,13 +458,6 @@ export const useDiagnosis = () => {
         throw error;
       }
     }
-    else if (needs_user_input === 'image_upload') {
-      console.log('📸 Image upload required - backend should have set stage correctly');
-      console.log('Current stage should already be awaiting_image_upload:', currentStage);
-      
-      // Just return that image upload is needed - don't change state
-      return { needsImageUpload: true };
-    }
     // ============================================
     // AUTO-CONTINUE TO NEXT ENDPOINT
     // ============================================
@@ -536,17 +484,27 @@ export const useDiagnosis = () => {
     }
     
   }, [
-    getCurrentStage, 
-    getWorkflowInfo, 
-    getResult, 
+    getCurrentStage,
+    getWorkflowInfo,
+    getResult,
     getSessionId,
     getRequiresUserInput,
-    getSkinCancerRiskDetected,
     validateActiveSession,
-    callNextEndpoint, 
+    callNextEndpoint,
     runOverallAnalysis
   ]);
   
+  const handlePrivacyAccepted = useCallback(async () => {
+    await ApiService.acceptPrivacyPolicy();
+    if (state.privacyPolicyPending) {
+      await state.privacyPolicyPending();
+    }
+  }, [state.privacyPolicyPending]);
+
+  const dismissPrivacyModal = useCallback(() => {
+    setState(prev => ({ ...prev, privacyPolicyPending: null }));
+  }, []);
+
   // Reset diagnosis state
   const reset = useCallback(() => {
     setState({
@@ -555,7 +513,8 @@ export const useDiagnosis = () => {
       error: null,
       sessionId: null,
       currentStage: null,
-      workflowInfo: null
+      workflowInfo: null,
+      privacyPolicyPending: null,
     });
   }, []);
 
@@ -566,10 +525,12 @@ export const useDiagnosis = () => {
     sessionId: getSessionId(),
     currentStage: getCurrentStage(),
     workflowInfo: getWorkflowInfo(),
+    showPrivacyModal: !!state.privacyPolicyPending,
+    handlePrivacyAccepted,
+    dismissPrivacyModal,
     startDiagnosis,
     continueToNextStep,
     submitFollowUp,
-    submitImageAnalysis,
     runOverallAnalysis,
     runMedicalReport,
     continueWorkflow,

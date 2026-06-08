@@ -2,25 +2,28 @@ import React from 'react';
 import 'App.css';
 import { WorkflowRouter } from 'WorkflowRouter';
 import { useDiagnosis } from 'hooks/useDiagnosis';
+import { PrivacyPolicyModal } from 'components/medical/PrivacyPolicyModal';
 import Navbar from 'components/homepage/Navbar';
 import { useAuth } from 'contexts/AuthContext';
 
 
 const DiagnosisFunction: React.FC = () => {
   const { loggedIn } = useAuth();
-  const { 
-    loading, 
-    result, 
-    error, 
-    sessionId, 
+  const {
+    loading,
+    result,
+    error,
+    sessionId,
     currentStage,
     workflowInfo,
-    startDiagnosis, 
+    showPrivacyModal,
+    handlePrivacyAccepted,
+    dismissPrivacyModal,
+    startDiagnosis,
     submitFollowUp,
-    submitImageAnalysis,
     continueToNextStep,
-    testConnection, 
-    reset 
+    testConnection,
+    reset
   } = useDiagnosis();
 
 const handleStartDiagnosis = async (symptoms: string) => {
@@ -76,27 +79,6 @@ const handleSubmitFollowUp = async (responses: Record<string, string>) => {
   }
 };
 
-const handleImageSubmit = async (image: File) => {
-  try {
-    console.log('Submitting image for analysis:', image.name)
-
-    const result = await submitImageAnalysis(image);
-    console.log('Image analysis completed:', result);
-    
-    // Auto-continue workflow
-    setTimeout(async () => {
-      try {
-        await continueToNextStep();
-      } catch (err) {
-        console.log('Workflow completed');
-      }
-    }, 1000);
-    
-  } catch (err) {
-    console.error('❌ Image submission failed:', err);
-  }
-};
-
   const handleTestConnection = async () => {
     try {
       const healthData = await testConnection();
@@ -108,6 +90,12 @@ const handleImageSubmit = async (image: File) => {
 
   return (
     <>
+      {showPrivacyModal && (
+        <PrivacyPolicyModal
+          onAccept={handlePrivacyAccepted}
+          onCancel={dismissPrivacyModal}
+        />
+      )}
       <Navbar loggedIn={loggedIn} />
       
       <div className="App" style={{ minHeight: '100vh', position: 'relative', paddingTop: '31px' }}>
@@ -148,8 +136,7 @@ const handleImageSubmit = async (image: File) => {
             workflowInfo={workflowInfo}
             onStartDiagnosis={handleStartDiagnosis}
             onContinue={handleContinueToNext}
-            onSubmitFollowUp={handleSubmitFollowUp} 
-            onSubmitImage={handleImageSubmit}
+            onSubmitFollowUp={handleSubmitFollowUp}
             onReset={reset}
           />
         </main>

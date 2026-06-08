@@ -1,16 +1,15 @@
-from typing import TypedDict, Tuple
+from typing import TypedDict
 import re
-from adapters.local_model_adapter4 import LocalModelAdapter
 from schemas.medical_schemas import TextualSymptomAnalysisResult
+from llm.client import llm_client
+
 
 def parse_diagnosis_details(raw_response: str) -> list[TextualSymptomAnalysisResult]:
     results: list[TextualSymptomAnalysisResult] = []
-    
-    # --- Extract Each Diagnosis Block ---
+
     diagnosis_pattern = re.compile(
         r"-\s*Diagnosis:\s*(.*?)\s*"
         r"-\s*Confidence:\s*([0-9.]+)\s*",
-
         re.IGNORECASE | re.DOTALL
     )
 
@@ -21,84 +20,79 @@ def parse_diagnosis_details(raw_response: str) -> list[TextualSymptomAnalysisRes
             "diagnosis_confidence": float(confidence.strip()),
         }
         results.append(result)
-        
-    results.sort(key=lambda x: x["diagnosis_confidence"], reverse=True)
 
+    results.sort(key=lambda x: x["diagnosis_confidence"], reverse=True)
     return results
 
+
 class LLMDiagnosisNode:
-    def __init__(self, adapter: LocalModelAdapter):
-        self.adapter = adapter 
-    
-    async def __call__(self, state:dict) -> dict:
+    async def __call__(self, state: dict) -> dict:
         state["current_workflow_stage"] = "textual_analysis"
-        
-        print("🩺 LLM DIAGNOSIS NODE CALLED!")
-        print(f"    Input: {state.get('latest_user_message', 'NO MESSAGE')}")
-        
-        # Process the diagnosis
+        print("Diagnosis NODE CALLED!")
+        msg = state.get('latest_user_message', 'NO MESSAGE')
+        print(f"    Input: {msg}")
+
         state = await self.diagnose(state)
-        
-        # Workflow path set based on logic
+
         workflow_path = []
-        
-        #Determine initial path 
-        if state.get("image_required", False):
-            workflow_path.append("textual_to_image")
-        else:
-            workflow_path.append("textual_only")
-        
+        workflow_path.append("textual_only")
         state["workflow_path"] = workflow_path
-        
-        print(f"✅ LLM Diagnosis complete - found {len(state.get('textual_analysis', []))} diagnoses")
-        
+
+        analysis = state.get('textual_analysis', [])
+        print(f"Diagnosis complete - found {len(analysis)} diagnoses")
         return state
-        
-    async def diagnose(self, state:dict) -> dict:
-        # Directly use the text since validation was done upstream.'
+
+    async def diagnose(self, state: dict) -> dict:
         text = state.get("latest_user_message", "")
-        
-        # Pre-filter for skin conditions
+
         skin_cancer_keywords = [
-            'mole', 'lesion', 'growth', 'bump', 'spot', 'rash', 'patch', 'scab',
-            'discoloration', 'freckle', 'birthmark', 'wart', 'cyst', 'lump',
-            'melanoma', 'cancer', 'tumor', 'nevus', 'seborrheic', 'keratosis'
+            "mole", "lesion", "growth", "bump", "spot", "rash", "patch", "scab",
+            "discoloration", "freckle", "birthmark", "wart", "cyst", "lump",
+            "melanoma", "cancer", "tumor", "nevus", "seborrheic", "keratosis"
         ]
-        
         general_skin_keywords = [
-            'skin', 'dermatitis', 'eczema', 'psoriasis', 'acne', 'hives',
-            'rosacea', 'fungal', 'bacterial', 'viral', 'infection'
+            "skin", "dermatitis", "eczema", "psoriasis", "acne", "hives",
+            "rosacea", "fungal", "bacterial", "viral", "infection"
         ]
-        
-        # Check for skin cancer specific symptoms
-        has_skin_cancer_indicators = any(keyword in text.lower() for keyword in skin_cancer_keywords)
-        has_general_skin_symptoms = any(keyword in text.lower() for keyword in general_skin_keywords)
-        
+
+        has_skin_cancer_indicators = any(kw in text.lower() for kw in skin_cancer_keywords)
+        has_general_skin_symptoms = any(kw in text.lower() for kw in general_skin_keywords)
+
         if has_skin_cancer_indicators or has_general_skin_symptoms:
             state["userInput_skin_symptoms"] = text
             state["requires_skin_cancer_screening"] = True
-
-            placeholder_skin_diagnoses = [
-                {"text_diagnosis": "Possible Skin Cancer Condition (Further Evaluation Required)", "diagnosis_confidence": None},
+            state["textual_analysis"] = [
+                {"text_diagnosis": "Possible Skin Condition (Further Evaluation Required)", "diagnosis_confidence": None}
             ]
-            
-            state["textual_analysis"] = placeholder_skin_diagnoses
             state["average_confidence"] = 0.0
-            
             return state
-        else:
-            state["userInput_symptoms"] = text # Store user input (non-skin symptoms) to be used later with textual_analysis for overall analysis
-            state["requires_skin_cancer_screening"] = False
 
-            # Get Q8 model for diagnosis
-            output = await self.adapter.generate_diagnosis(text)
-            
-            #parse multiple diagnoses
-            parsed_diagnosis = parse_diagnosis_details(output)
-            
-            #Save list to the agent state
-            state["textual_analysis"] = parsed_diagnosis
-            #Save bool to indicate if image is required
-            state["image_required"] = False 
+        state["userInput_symptoms"] = text
+        state["requires_skin_cancer_screening"] = False
 
-            return state
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are an AI medical assistant. Provide accurate, structured responses. "
+                    "Always follow the exact format requested. Be concise and professional."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Symptoms: {text}\n"
+                    "List 5 most possible diagnoses in this exact format ONLY:\n"
+                    "- Diagnosis: <name>\n"
+                    "- Confidence: <0.0-1.0>\n\n"
+                    "Repeat for each diagnosis. List from most likely to least likely."
+                ),
+            },
+        ]
+
+        output = await llm_client.complete(messages, max_tokens=300, temperature=0.1)
+        parsed_diagnosis = parse_diagnosis_details(output)
+
+        state["textual_analysis"] = parsed_diagnosis
+        state["image_required"] = False
+        return state

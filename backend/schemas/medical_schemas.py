@@ -14,11 +14,6 @@ WorkflowStage = Literal[
     "processing_followup_responses",
     "followup_analysis_complete",
     
-    # Image flow
-    "awaiting_image_upload",
-    "analyzing_image",
-    "image_analysis_complete",
-    
     # Analysis flow
     "performing_overall_analysis",
     "overall_analysis_complete",
@@ -39,20 +34,19 @@ WorkflowAction = Literal[
 ]
 
 WorkflowPathType = Literal[
-    "textual_only",           # Instance 1: Direct textual analysis
-    "textual_to_image",       # Instance 2: Textual -> Image
-    "textual_to_skin_screening",   # Instance 2: Textual -> Skin Cancer Screening -> Image
-    "skin_to_image_analysis",  # Instance 2: Skin screening -> Image analysis
-    "textual_to_followup",    # Instance 3 & 4: Textual -> Follow-up (start)
-    "followup_only",          # Instance 3: Follow-up -> Overall analysis
-    "skin_to_standard_followup" # Instance 3: Skin screening -> Standard follow-up (negative assessment on skin cancer)
+    "textual_only",
+    "textual_to_skin_screening",
+    "textual_to_followup",
+    "followup_only",
+    "skin_to_standard_followup",
+    "skin_cancer_high_risk",
 ]
 
 class WorkflowInfo(TypedDict, total=False):
     current_stage: WorkflowStage
     ui_component: str  # Backend tells frontend which component to render
     next_endpoint: str | None
-    needs_user_input: Literal["followup_questions", "image_upload"] | None
+    needs_user_input: Literal["followup_questions"] | None
     auto_continue: bool
     show_continue_button: bool
     progress_percentage: int
@@ -63,10 +57,6 @@ class WorkflowInfo(TypedDict, total=False):
 class TextualSymptomAnalysisResult(TypedDict):
     text_diagnosis: str
     diagnosis_confidence: float
-    
-class SkinLesionImageAnalysisResult(TypedDict):
-    image_diagnosis: str | None
-    confidence_score: Union[dict[str, float]] | None
     
 class OverallAnalysisResult(TypedDict):
     final_diagnosis: str
@@ -97,7 +87,6 @@ class AgentState(TypedDict, total=False):
     current_workflow_stage: str | None
     
     #Data tracking
-    image_required: bool
     requires_skin_cancer_screening: bool | None  # Flag for skin cancer screening
     workflow_path: list[WorkflowPathType] | None
     average_confidence: float | None # Average confidence score across all diagnoses for textual analysis and follow-up diagnosis
@@ -118,13 +107,7 @@ class AgentState(TypedDict, total=False):
     
     skin_cancer_risk_metrics: dict[str, Any] | None  # Detailed ABCDE scoring and risk analysis
 
-    #STAGE 2: Skin LesionImage Analysis (Optional)
-    userInput_skin_symptoms: str | None #Used to store user input of their skin symptoms to be used as a value with skin_lesion_analysis for overall analysis (if image_required is True)
-    skin_cancer_screening_responses: str | None # Used for instance 4 (overall analysis) when followup_qna_overall and skin screening questions are needed to be used
-    image_input: str | None # Stores uploaded image in the form of file path, base64, or raw bytes
-    skin_lesion_analysis: SkinLesionImageAnalysisResult | None
-
-    #STAGE 3: Overall Analysis
+    #STAGE 2: Overall Analysis
     overall_analysis: OverallAnalysisResult | None
 
     #STAGE 4: Healthcare Treatment Recommendation
