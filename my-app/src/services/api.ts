@@ -88,12 +88,11 @@ export class ApiService {
   }
 
   //NODE 2: Follow-up questions
-  static async runFollowupQuestions(sessionId: string, previousState: any, responses?: Record<string, string>): Promise<any> {
+  static async runFollowupQuestions(sessionId: string, responses?: Record<string, string>): Promise<any> {
     try {
       const formData = new FormData();
       formData.append('session_id', sessionId);
-      formData.append('previous_state', JSON.stringify(previousState));
-      
+
       if (responses) {
         formData.append('followup_responses', JSON.stringify(responses));
       }
@@ -127,11 +126,10 @@ export class ApiService {
   }
 
   //NODE 4: Overall analysis
-  static async runOverallAnalysis(sessionId: string, previousState: any): Promise<any> {
+  static async runOverallAnalysis(sessionId: string): Promise<any> {
     try {
       const formData = new FormData();
       formData.append('session_id', sessionId);
-      formData.append('previous_state', JSON.stringify(previousState));
 
       console.log('🎯 Running overall analysis:', { sessionId });
 
@@ -162,11 +160,10 @@ export class ApiService {
   }
 
   //NODE Final: Medical report
-  static async runMedicalReport(sessionId: string, previousState: any): Promise<any> {
+  static async runMedicalReport(sessionId: string): Promise<any> {
     try {
       const formData = new FormData();
       formData.append('session_id', sessionId);
-      formData.append('previous_state', JSON.stringify(previousState));
 
       console.log('📄 Running medical report:', { sessionId });
 

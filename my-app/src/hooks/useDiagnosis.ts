@@ -137,7 +137,6 @@ export const useDiagnosis = () => {
     try {
       const response = await ApiService.runFollowupQuestions(
         sessionId,
-        result,
         responses
       );
 
@@ -185,8 +184,7 @@ export const useDiagnosis = () => {
 
     try {
       const response = await ApiService.runOverallAnalysis(
-        sessionId,
-        result
+        sessionId
       );
       
       console.log('🎯 Overall analysis response:', response);
@@ -225,8 +223,7 @@ export const useDiagnosis = () => {
 
     try {
       const response = await ApiService.runMedicalReport(
-        sessionId,
-        result
+        sessionId
       );
       
       console.log('📄 Medical report response:', response);
@@ -373,8 +370,7 @@ export const useDiagnosis = () => {
         
         console.log('📄 Generating medical report...');
         const reportResponse = await ApiService.runMedicalReport(
-          sessionId,
-          result
+          sessionId
         );
         
         //Validate response
@@ -429,8 +425,7 @@ export const useDiagnosis = () => {
         setState(prev => ({ ...prev, loading: true, error: null }));
         
         const response = await ApiService.runFollowupQuestions(
-          sessionId,
-          result
+          sessionId
           // No responses yet - this will generate questions
         );
         
