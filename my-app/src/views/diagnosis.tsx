@@ -3,6 +3,7 @@ import 'App.css';
 import { WorkflowRouter } from 'WorkflowRouter';
 import { useDiagnosis } from 'hooks/useDiagnosis';
 import { PrivacyPolicyModal } from 'components/medical/PrivacyPolicyModal';
+import { ChatPanel } from 'components/medical/ChatPanel';
 import Navbar from 'components/homepage/Navbar';
 import { useAuth } from 'contexts/AuthContext';
 
@@ -140,6 +141,10 @@ const handleSubmitFollowUp = async (responses: Record<string, string>) => {
             onReset={reset}
           />
         </main>
+
+        <section style={{ padding: '0 var(--spacing-md)', maxWidth: '800px', margin: 'var(--spacing-lg) auto 0' }}>
+          <ChatPanel />
+        </section>
 
         {/* Footer */}
         <footer style={{

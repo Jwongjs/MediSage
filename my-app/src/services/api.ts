@@ -193,6 +193,24 @@ export class ApiService {
     }
   }
   
+  static async askChat(
+    query: string,
+    conversationHistory: Array<{ role: string; content: string }> = []
+  ): Promise<{ answer: string; sources: string[] }> {
+    const response = await fetch(`${API_BASE_URL}/chat/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ query, conversation_history: conversationHistory }),
+    });
+    if (response.status === 403) {
+      const body = await response.json().catch(() => ({}));
+      if (body.detail === 'privacy_policy_required') throw new PrivacyPolicyRequiredError();
+    }
+    if (!response.ok) throw new Error(`Chat failed: HTTP ${response.status}`);
+    return response.json();
+  }
+
   static async acceptPrivacyPolicy(): Promise<void> {
     const response = await fetch(`${API_BASE_URL}/auth/accept-privacy-policy`, {
       method: 'PATCH',
