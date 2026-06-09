@@ -42,6 +42,11 @@ async def lifespan(app: FastAPI):
         from graphs.patient_workflow import compile_patient_workflow
         app.state.patient_graph = compile_patient_workflow(checkpointer)
         print("Patient workflow graph compiled with Supabase checkpointer")
+        from graphs.rag_chatbot import compile_rag_chatbot
+        from api.chat_routes import chat_router
+        app.state.rag_graph = compile_rag_chatbot()
+        app.include_router(chat_router)
+        print("RAG chatbot graph compiled")
         print("Startup complete!")
         yield
 
