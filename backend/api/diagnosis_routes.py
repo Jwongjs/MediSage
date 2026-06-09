@@ -12,6 +12,21 @@ diagnosis_router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+async def _ingest_report_background(user_id: str, session_id: str, report_text: str) -> None:
+    try:
+        from rag.retriever import ingest_document
+        await ingest_document(
+            user_id=user_id,
+            source_type="medical_report",
+            source_id=session_id,
+            text=report_text,
+            metadata={"session_id": session_id},
+        )
+        logger.info(f"Background ingestion complete: session={session_id}")
+    except Exception as e:
+        logger.error(f"Background ingestion failed: session={session_id} error={e}")
+
+
 async def _get_workflow_info(graph, config: dict, state: dict) -> dict:
     snapshot = await graph.aget_state(config)
     next_nodes = list(snapshot.next) if snapshot and snapshot.next else []
@@ -116,6 +131,14 @@ async def run_medical_report(
     try:
         result = await graph.ainvoke(None, config)
         workflow_info = await _get_workflow_info(graph, config, result)
+
+        user = get_current_user(request)
+        report_text = result.get("medical_report", "")
+        if user and report_text:
+            background_tasks.add_task(
+                _ingest_report_background, user["id"], session_id, report_text
+            )
+
         return {"success": True, "session_id": session_id, "result": result, "workflow_info": workflow_info}
     except Exception as e:
         logger.error(f"Medical report generation failed: {e}")
