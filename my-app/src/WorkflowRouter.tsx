@@ -2,7 +2,6 @@ import React from 'react';
 import { AgentState } from 'types/medical';
 import { DiagnosisFormPage } from 'pages/diagnosis/DiagnosisFormPage';
 import { FollowUpQuestionsPage } from 'pages/diagnosis/FollowUpQuestionsPage';
-import { ImageAnalysisPage } from 'pages/diagnosis/ImageAnalysisPage';
 import { AnalysisProgressPage } from 'pages/diagnosis/AnalysisProgressPage';
 import { FinalReportPage } from 'pages/diagnosis/FinalReportPage';
 import { ErrorPage } from 'pages/diagnosis/ErrorPage';
@@ -28,7 +27,6 @@ export const WorkflowRouter: React.FC<WorkflowRouterProps> = ({
   workflowInfo,
   onStartDiagnosis,
   onSubmitFollowUp,
-  onSubmitImage,
   onReset,
   onContinue
 }) => {
@@ -78,6 +76,29 @@ export const WorkflowRouter: React.FC<WorkflowRouterProps> = ({
         />
       );
 
+    // SP3 stages — complete after SP3 merge
+    case 'initializing':
+    case 'running_diagnosis':
+      return (
+        <AnalysisProgressPage
+          workflowState={workflowState}
+          loading={loading}
+          onReset={onReset}
+          onContinue={onContinue}
+        />
+      );
+    case 'awaiting_sign_responses':
+      return (
+        <DiagnosisFormPage
+          onSubmit={onStartDiagnosis}
+          onContinue={onContinue}
+          loading={loading}
+          sessionId={sessionId}
+          workflowState={workflowState}
+          workflowInfo={workflowInfo}
+        />
+      );
+
     // FOLLOW-UP QUESTIONS: Generate or collect responses
     // case 'generating_followup_questions':
     case 'awaiting_followup_responses':
@@ -93,20 +114,6 @@ export const WorkflowRouter: React.FC<WorkflowRouterProps> = ({
         onReset={onReset}
       />
     );
-
-    // IMAGE ANALYSIS: Upload and analyze image    
-    case 'awaiting_image_upload':
-    case 'analyzing_image':
-    case 'image_analysis_complete':
-      return (
-        <ImageAnalysisPage
-          workflowState={workflowState}
-          loading={loading}
-          onSubmitImage={onSubmitImage ?? (() => Promise.resolve())}
-          onReset={onReset}
-          onContinue={onContinue}
-        />
-      );
 
     // OVERALL ANALYSIS: Processing all data
     case 'performing_overall_analysis':
