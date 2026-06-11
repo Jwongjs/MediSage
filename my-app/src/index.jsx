@@ -1,9 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
-//organized CSS files
-import './styles/variables.css';  // CSS custom properties first
-import './styles/globals.css';    // Global styles second
+import './index.css';
 
 import App from './App';
 import reportWebVitals from './reportWebVitals';

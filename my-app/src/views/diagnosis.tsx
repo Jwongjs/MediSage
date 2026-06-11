@@ -1,5 +1,4 @@
 import React from 'react';
-import 'App.css';
 import { WorkflowRouter } from 'WorkflowRouter';
 import { useDiagnosis } from 'hooks/useDiagnosis';
 import { PrivacyPolicyModal } from 'components/medical/PrivacyPolicyModal';
