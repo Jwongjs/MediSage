@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AuthService } from 'services/auth';
 import { useAuth } from 'contexts/AuthContext';
-import { LoadingSpinner } from 'components/common/LoadingSpinner';
+import { PageLayout } from 'components/layout/PageLayout';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Activity, Mail, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 const ConfirmationPending: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -19,115 +23,97 @@ const ConfirmationPending: React.FC = () => {
       navigate('/register');
       return;
     }
-
-    // Auto-register when page loads
     processRegistration();
-  }, [registrationData, navigate]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const processRegistration = async () => {
     if (!registrationData) return;
-
     setLoading(true);
     setError(null);
-
     try {
-      console.log('Starting registration process...');
       const response = await AuthService.register(registrationData);
-      console.log('Registration response:', response);
-
       if (response.email_confirmation_required) {
         setSuccess('Registration successful! Please check your email to confirm your account, then try logging in.');
       } else {
-        // Registration complete without email confirmation
-        await login(); // Update auth context
+        await login();
         navigate('/');
       }
-    } catch (error: any) {
-      console.error('Registration error:', error);
-      setError(error.message || 'Registration failed');
+    } catch (err: any) {
+      setError(err.message || 'Registration failed');
     } finally {
       setLoading(false);
     }
   };
 
-  if (!registrationData) {
-    return <div>Redirecting...</div>;
-  }
+  if (!registrationData) return <div>Redirecting…</div>;
 
   return (
-    <div style={{ 
-      display: 'flex', 
-      flexDirection: 'column', 
-      alignItems: 'center', 
-      justifyContent: 'center', 
-      minHeight: '100vh',
-      padding: '2rem'
-    }}>
-      <div style={{
-        maxWidth: '500px',
-        width: '100%',
-        textAlign: 'center',
-        background: '#fff',
-        padding: '2rem',
-        borderRadius: '8px',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
-      }}>
-        {loading && (
-          <>
-            <LoadingSpinner size="lg" />
-            <h2 style={{ margin: '1rem 0', color: '#007bff' }}>
-              Creating your account...
-            </h2>
-            <p style={{ color: '#666' }}>
-              Please wait while we set up your medical profile.
-            </p>
-          </>
-        )}
+    <PageLayout className="flex items-center justify-center py-16 px-4">
+      <div className="w-full max-w-sm animate-fade-in-up">
+        <div className="flex justify-center mb-6">
+          <div className="flex items-center gap-2">
+            <Activity className="h-6 w-6 text-primary" />
+            <span className="font-bold text-xl">MediSage</span>
+          </div>
+        </div>
 
-        {error && (
-          <>
-            <h2 style={{ color: '#dc3545' }}>Registration Failed</h2>
-            <p style={{ color: '#dc3545', marginBottom: '1.5rem' }}>{error}</p>
-            <button
-              onClick={() => navigate('/register')}
-              style={{
-                padding: '0.75rem 1.5rem',
-                background: '#007bff',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '1rem'
-              }}
-            >
-              Try Again
-            </button>
-          </>
-        )}
+        <Card className="shadow-sm text-center">
+          {loading && (
+            <>
+              <CardHeader className="pb-3">
+                <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                </div>
+                <CardTitle className="text-xl">Creating your account…</CardTitle>
+                <CardDescription>Please wait while we set up your medical profile.</CardDescription>
+              </CardHeader>
+              <CardContent />
+            </>
+          )}
 
-        {success && (
-          <>
-            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>✅</div>
-            <h2 style={{ color: '#28a745' }}>Almost There!</h2>
-            <p style={{ color: '#666', marginBottom: '1.5rem' }}>{success}</p>
-            <button
-              onClick={() => navigate('/login')}
-              style={{
-                padding: '0.75rem 1.5rem',
-                background: '#28a745',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '1rem'
-              }}
-            >
-              Go to Login
-            </button>
-          </>
-        )}
+          {error && (
+            <>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-xl text-destructive">Registration failed</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+                <Button className="w-full" onClick={() => navigate('/register')}>
+                  Try again
+                </Button>
+              </CardContent>
+            </>
+          )}
+
+          {success && (
+            <>
+              <CardHeader className="pb-3">
+                <div className="w-12 h-12 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Mail className="h-6 w-6 text-accent" />
+                </div>
+                <CardTitle className="text-xl">Check your inbox</CardTitle>
+                <CardDescription>
+                  We sent a confirmation link to your email. Click it to activate your account.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-2 text-sm text-accent justify-center">
+                  <CheckCircle className="h-4 w-4" />Account created successfully
+                </div>
+                <p className="text-sm text-muted-foreground">{success}</p>
+                <Button variant="outline" className="w-full" asChild>
+                  <Link to="/login">Go to sign in</Link>
+                </Button>
+              </CardContent>
+            </>
+          )}
+        </Card>
       </div>
-    </div>
+    </PageLayout>
   );
 };
 
