@@ -1,609 +1,229 @@
 import React, { useEffect, useState } from 'react';
-import styled from 'styled-components';
-import Navbar from 'components/homepage/Navbar';
-import { Button } from 'components/common/Button';
-import { Input } from 'components/common/Input';
-import { Card } from 'components/common/Card';
-import { LoadingSpinner } from 'components/common/LoadingSpinner';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from 'contexts/AuthContext';
 import { AuthService } from 'services/auth';
 import { MedicalReportService, MedicalReport } from 'services/report';
-import { UserProfile } from 'types/auth';
+import { PageLayout } from 'components/layout/PageLayout';
 import { MedicalReportModal } from 'components/medical/MedicalReportModal';
-
-const ProfileWrapper = styled.div`
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem;
-`;
-
-const ProfileHeader = styled.div`
-  text-align: center;
-  margin-bottom: 3rem;
-  
-  h1 {
-    margin: 0 0 0.5rem 0;
-    color: var(--dark);
-    font-size: 2rem;
-  }
-  
-  p {
-    margin: 0;
-    color: var(--secondary);
-    font-size: 1rem;
-  }
-`;
-
-const ProfileGrid = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 2fr;
-  gap: 2rem;
-  
-  @media (max-width: 768px) {
-    grid-template-columns: 1fr;
-  }
-`;
-
-const SectionCard = styled(Card)`
-  height: fit-content;
-`;
-
-const SectionHeader = styled.div`
-  display: flex;
-  justify-content: space-between; /* FIXED: was "between" */
-  align-items: center;
-  margin-bottom: 1.5rem;
-  
-  h3 {
-    margin: 0;
-    color: var(--dark);
-    font-size: 1.3rem;
-  }
-`;
-
-const FieldGroup = styled.div`
-  margin-bottom: 1.5rem;
-`;
-
-const Label = styled.label`
-  display: block;
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-  color: var(--dark);
-`;
-
-const ErrorText = styled.p`
-  color: var(--danger);
-  font-size: 0.9rem;
-  margin: 0.5rem 0;
-`;
-
-const SuccessText = styled.p`
-  color: var(--success);
-  font-size: 0.9rem;
-  margin: 0.5rem 0;
-`;
-
-const ReportsContainer = styled.div`
-  max-height: 600px;
-  overflow-y: auto;
-`;
-
-const ReportCard = styled.div`
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  padding: 1rem;
-  margin-bottom: 1rem;
-  background: #f8f9fa;
-  
-  &:hover {
-    background: #e9ecef;
-    cursor: pointer;
-  }
-`;
-
-const ReportHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 0.5rem;
-`;
-
-const ReportTitle = styled.h4`
-  margin: 0;
-  color: var(--dark);
-  font-size: 1rem;
-`;
-
-const ReportDate = styled.span`
-  font-size: 0.8rem;
-  color: var(--secondary);
-`;
-
-const ReportSummary = styled.div`
-  font-size: 0.9rem;
-  color: var(--secondary);
-  margin-bottom: 0.5rem;
-`;
-
-const ReportActions = styled.div`
-  display: flex;
-  gap: 0.5rem;
-`;
-
-const ActionButton = styled.button`
-  background: none;
-  border: 1px solid #dee2e6;
-  border-radius: 4px;
-  padding: 0.25rem 0.5rem;
-  font-size: 0.8rem;
-  cursor: pointer;
-  
-  &:hover {
-    background: #e9ecef;
-  }
-  
-  &.danger {
-    color: var(--danger);
-    border-color: var(--danger);
-    
-    &:hover {
-      background: var(--danger);
-      color: white;
-    }
-  }
-`;
-
-const EmptyState = styled.div`
-  text-align: center;
-  padding: 2rem;
-  color: var(--secondary);
-  
-  p {
-    margin: 0 0 1rem 0;
-  }
-`;
-
-const Select = styled.select`
-  width: 100%;
-  padding: 0.75rem 1rem;
-  border: 1px solid #ced4da;
-  border-radius: 4px;
-  font-size: 1rem;
-  background: #fff;
-`;
-
-interface EditingReport {
-  id: string;
-  newTitle: string;
-}
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
+import { LogOut, User, Activity, ShieldCheck, Trash2, Eye, RefreshCw } from 'lucide-react';
+import { UserProfile } from 'types/auth';
 
 const ProfilePage: React.FC = () => {
-  const { loggedIn } = useAuth();
-  
-  // User data state
-  const [userData, setUserData] = useState<UserProfile>({
-    name: '',
-    email: '',
-    age: '',
-    gender: '',
-  });
-  const [userEditMode, setUserEditMode] = useState(false);
-  const [userLoading, setUserLoading] = useState(false);
-  const [userError, setUserError] = useState<string | null>(null);
-  const [userSuccess, setUserSuccess] = useState<string | null>(null);
-  
-  // Medical reports state
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const [userData, setUserData] = useState<UserProfile>({ name: '', email: '', age: '', gender: '' });
+  const [profileLoading, setProfileLoading] = useState(false);
+
   const [medicalReports, setMedicalReports] = useState<MedicalReport[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [reportsError, setReportsError] = useState<string | null>(null);
-  const [editingReport, setEditingReport] = useState<EditingReport | null>(null);
   const [selectedReport, setSelectedReport] = useState<MedicalReport | null>(null);
-  
-  // Age and gender options
-  const ageOptions = ['', 'Under 18', '18-25', '26-35', '36-45', '46-60', '61+'];
-  const genderOptions = ['', 'Male', 'Female', 'Prefer not to say'];
 
-  // Fetch user profile data
   const fetchUserProfile = async () => {
-    setUserLoading(true);
-    setUserError(null);
+    setProfileLoading(true);
     try {
       const data = await AuthService.getProfile();
-      setUserData({
-        name: data.name || '',
-        email: data.email || '',
-        age: data.age || '',
-        gender: data.gender || '',
-      });
-    } catch (err: any) {
-      setUserError('Failed to load profile');
+      setUserData({ name: data.name || '', email: data.email || '', age: data.age || '', gender: data.gender || '' });
     } finally {
-      setUserLoading(false);
+      setProfileLoading(false);
     }
   };
 
-  // Fetch medical reports
   const fetchMedicalReports = async () => {
     setReportsLoading(true);
     setReportsError(null);
     try {
       const response = await MedicalReportService.getUserMedicalReports(20, 0);
       setMedicalReports(response.reports);
-    } catch (err: any) {
-      setReportsError('Failed to load medical reports');
+    } catch {
+      setReportsError('Failed to load medical reports.');
     } finally {
       setReportsLoading(false);
     }
   };
 
-  // Load data on mount
   useEffect(() => {
-    if (loggedIn) {
-      fetchUserProfile();
-      fetchMedicalReports();
-    }
-  }, [loggedIn]);
+    fetchUserProfile();
+    fetchMedicalReports();
+  }, []);
 
-  // Handle user profile form changes
-  const handleUserChange = (field: keyof UserProfile, value: string) => {
-    setUserData(prev => ({ ...prev, [field]: value }));
-  };
-
-const handleUserSave = async (e: React.FormEvent) => {
-  e.preventDefault();
-  
-  // Only save if we're actually in edit mode
-  if (!userEditMode) {
-    console.log('Not in edit mode, ignoring form submission');
-    return;
-  }
-  
-  console.log('Saving user profile...');
-  setUserLoading(true);
-  setUserError(null);
-  setUserSuccess(null);
-  try {
-    const updatedUser = await AuthService.updateProfile({
-      ...userData,
-      age: userData.age || '',
-      gender: userData.gender || '',
-    });
-    
-    console.log('✅ Profile updated:', updatedUser);
-    
-    setUserData({
-      name: updatedUser.name || '',
-      email: updatedUser.email || '',
-      age: updatedUser.age || '',
-      gender: updatedUser.gender || '',
-    });
-    
-    setUserSuccess('Profile updated successfully!');
-    setUserEditMode(false);
-  } catch (err: any) {
-    setUserError(err.message);
-  } finally {
-    setUserLoading(false);
-  }
-};
-
-  // Handle report title editing
-  const handleReportTitleEdit = (reportId: string, currentTitle: string) => {
-    setEditingReport({ id: reportId, newTitle: currentTitle });
-  };
-
-  // Save report title
-  const handleReportTitleSave = async (reportId: string) => {
-    if (!editingReport || editingReport.id !== reportId) return;
-    
-    try {
-      const updatedReport = await MedicalReportService.updateReportTitle(
-        reportId,
-        editingReport.newTitle
-      );
-      
-      // Update local state
-      setMedicalReports(prev => 
-        prev.map(report => 
-          report.id === reportId 
-            ? { ...report, report_title: updatedReport.report_title }
-            : report
-        )
-      );
-      
-      setEditingReport(null);
-    } catch (err: any) {
-      setReportsError(`Failed to update report title: ${err.message}`);
-    }
-  };
-
-  // Delete medical report
   const handleReportDelete = async (reportId: string) => {
-    if (!window.confirm('Are you sure you want to delete this medical report?')) {
-      return;
-    }
-    
+    if (!window.confirm('Delete this report? This cannot be undone.')) return;
     try {
       await MedicalReportService.deleteMedicalReport(reportId);
-      setMedicalReports(prev => prev.filter(report => report.id !== reportId));
-    } catch (err: any) {
-      setReportsError(`Failed to delete report: ${err.message}`);
+      setMedicalReports(prev => prev.filter(r => r.id !== reportId));
+    } catch {
+      setReportsError('Failed to delete report.');
     }
   };
 
-  // View medical report
-  const handleReportView = (report: MedicalReport) => {
-    setSelectedReport(report);
+  const handleLogout = async () => {
+    await logout();
+    navigate('/');
   };
 
-  // Format date for display
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+  const email    = userData.email || (user as any)?.email || '';
+  const initials = email.slice(0, 2).toUpperCase() || 'ME';
 
-  if (!loggedIn) {
-    return (
-      <>
-        <Navbar loggedIn={false} />
-        <ProfileWrapper>
-          <SectionCard>
-            <ErrorText>Please log in to view your profile.</ErrorText>
-          </SectionCard>
-        </ProfileWrapper>
-      </>
-    );
-  }
+  const formatDate = (d: string) =>
+    new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 
   return (
-    <>
-      <Navbar loggedIn={true} />
-      <ProfileWrapper>
-        <ProfileHeader>
-          <h1>👤 My Profile</h1>
-          <p>Manage your account settings and medical history</p>
-        </ProfileHeader>
+    <PageLayout>
+      <div className="container mx-auto max-w-3xl px-4 py-10">
 
-        <ProfileGrid>
-          {/* User Profile Section */}
-          <SectionCard>
-            <SectionHeader>
-              <h3>🔧 Account Settings</h3>
-            </SectionHeader>
-            
-            {userError && <ErrorText>{userError}</ErrorText>}
-            {userSuccess && <SuccessText>{userSuccess}</SuccessText>}
-            
-            {userLoading ? (
-              <LoadingSpinner message="Loading profile..." />
-            ) : (
-              <div>
-                <form onSubmit={handleUserSave}>
-                  <FieldGroup>
-                    <Label htmlFor="name">Username</Label>
-                    <Input
-                      id="name"
-                      type="text"
-                      value={userData.name}
-                      onChange={val => handleUserChange('name', val)}
-                      disabled={!userEditMode || userLoading}
-                    />
-                  </FieldGroup>
-                  
-                  <FieldGroup>
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={userData.email}
-                      onChange={val => handleUserChange('email', val)}
-                      disabled={!userEditMode || userLoading}
-                    />
-                  </FieldGroup>
-                  
-                  <FieldGroup>
-                    <Label htmlFor="age">Age Group</Label>
-                    <Select
-                      id="age"
-                      value={userData.age}
-                      onChange={e => handleUserChange('age', e.target.value)}
-                      disabled={!userEditMode || userLoading}
-                    >
-                      {ageOptions.map(option => (
-                        <option key={option} value={option}>
-                          {option || 'Select age group'}
-                        </option>
-                      ))}
-                    </Select>
-                  </FieldGroup>
-                  
-                  <FieldGroup>
-                    <Label htmlFor="gender">Gender</Label>
-                    <Select
-                      id="gender"
-                      value={userData.gender}
-                      onChange={e => handleUserChange('gender', e.target.value)}
-                      disabled={!userEditMode || userLoading}
-                    >
-                      {genderOptions.map(option => (
-                        <option key={option} value={option}>
-                          {option || 'Select gender'}
-                        </option>
-                      ))}
-                    </Select>
-                  </FieldGroup>
-                  
-                  {/* ONLY show Save/Cancel buttons when in edit mode */}
-                  {userEditMode && (
-                    <div style={{ display: 'flex', gap: '1rem' }}>
-                      <Button
-                        type="submit"
-                        variant="primary"
-                        disabled={userLoading}
-                        style={{ flex: 1 }}
-                      >
-                        {userLoading ? 'Saving...' : '💾 Save Changes'}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => {
-                          console.log('Cancel button clicked');
-                          setUserEditMode(false);
-                          setUserError(null);
-                          setUserSuccess(null);
-                          fetchUserProfile(); // Reset to original data
-                        }}
-                        style={{ flex: 1 }}
-                      >
-                        ❌ Cancel
-                      </Button>
+        <div className="flex items-center gap-4 mb-8 flex-wrap">
+          <Avatar className="h-14 w-14 shrink-0">
+            <AvatarFallback className="bg-primary/10 text-primary font-semibold text-lg">{initials}</AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold truncate">{userData.name || email || 'Your account'}</h1>
+            <div className="flex items-center gap-1.5 mt-1">
+              <ShieldCheck className="h-3.5 w-3.5 text-accent shrink-0" />
+              <span className="text-xs text-muted-foreground">Account active</span>
+            </div>
+          </div>
+          <Button variant="outline" size="sm" className="ml-auto gap-1.5 shrink-0" onClick={handleLogout}>
+            <LogOut className="h-3.5 w-3.5" />Log out
+          </Button>
+        </div>
+
+        <Tabs defaultValue="overview">
+          <TabsList className="mb-6">
+            <TabsTrigger value="overview" className="gap-1.5"><User className="h-3.5 w-3.5" />Overview</TabsTrigger>
+            <TabsTrigger value="sessions" className="gap-1.5"><Activity className="h-3.5 w-3.5" />Sessions</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-4">
+            <Card className="shadow-sm">
+              <CardHeader className="pb-3"><CardTitle className="text-base">Account information</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                {profileLoading ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-4 w-48" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Email</span>
+                      <span className="text-sm font-medium">{email}</span>
                     </div>
-                  )}
-                </form>
-                
-                {!userEditMode && (
-                  <div style={{ marginTop: '1rem' }}>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => {
-                        console.log('Edit button clicked');
-                        setUserError(null);
-                        setUserSuccess(null);
-                        setUserEditMode(true);
-                      }}
-                      style={{ width: '100%' }}
-                    >
-                      ✏️ Edit Profile
+                    {userData.name && (
+                      <>
+                        <Separator />
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Username</span>
+                          <span className="text-sm font-medium">{userData.name}</span>
+                        </div>
+                      </>
+                    )}
+                    {userData.age && (
+                      <>
+                        <Separator />
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Age group</span>
+                          <span className="text-sm font-medium">{userData.age}</span>
+                        </div>
+                      </>
+                    )}
+                    <Separator />
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Privacy policy</span>
+                      <Badge variant="outline" className="text-xs gap-1">
+                        <ShieldCheck className="h-3 w-3 text-accent" />Accepted
+                      </Badge>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+            <Card className="shadow-sm border-destructive/20">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base text-destructive">Danger zone</CardTitle>
+                <CardDescription>Irreversible account actions.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button variant="destructive" size="sm" onClick={handleLogout}>Sign out of all sessions</Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="sessions">
+            <Card className="shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between pb-3">
+                <div>
+                  <CardTitle className="text-base">Diagnostic sessions</CardTitle>
+                  <CardDescription>Your saved MediSage medical reports.</CardDescription>
+                </div>
+                <Button variant="ghost" size="sm" onClick={fetchMedicalReports} disabled={reportsLoading} className="gap-1.5">
+                  <RefreshCw className={`h-3.5 w-3.5 ${reportsLoading ? 'animate-spin' : ''}`} />Refresh
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {reportsError && (
+                  <Alert variant="destructive" className="mb-4">
+                    <AlertDescription>{reportsError}</AlertDescription>
+                  </Alert>
+                )}
+                {reportsLoading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}
+                  </div>
+                ) : medicalReports.length === 0 ? (
+                  <div className="text-center py-10 space-y-2">
+                    <Activity className="h-8 w-8 text-muted-foreground/30 mx-auto" />
+                    <p className="text-sm text-muted-foreground">No reports yet.</p>
+                    <Button size="sm" variant="outline" onClick={() => navigate('/diagnosis')}>
+                      Start a diagnosis
                     </Button>
                   </div>
-                )}
-              </div>
-            )}
-          </SectionCard>
-
-          {/* Medical Reports Section */}
-          <SectionCard>
-            <SectionHeader>
-              <h3>📋 Medical Reports</h3>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={fetchMedicalReports}
-                disabled={reportsLoading}
-              >
-                🔄 Refresh
-              </Button>
-            </SectionHeader>
-            
-            {reportsError && <ErrorText>{reportsError}</ErrorText>}
-            
-            {reportsLoading ? (
-              <LoadingSpinner message="Loading medical reports..." />
-            ) : (
-              <ReportsContainer>
-                {medicalReports.length === 0 ? (
-                  <EmptyState>
-                    <p>📋 No medical reports found</p>
-                    <p>Complete a diagnosis to see your reports here</p>
-                    <Button 
-                      variant="primary" 
-                      size="sm"
-                      onClick={() => window.location.href = '/diagnosis'}
-                    >
-                      🚀 Start New Diagnosis
-                    </Button>
-                  </EmptyState>
                 ) : (
-                  medicalReports.map((report) => (
-                    <ReportCard key={report.id}>
-                      <ReportHeader>
-                        <div style={{ flex: 1 }}>
-                          {editingReport?.id === report.id ? (
-                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                              <Input
-                                type="text"
-                                value={editingReport.newTitle}
-                                onChange={(value) => setEditingReport(prev => 
-                                  prev ? { ...prev, newTitle: value } : null
-                                )}
-                                style={{ fontSize: '1rem', padding: '0.25rem 0.5rem' }}
-                              />
-                              <ActionButton onClick={() => handleReportTitleSave(report.id)}>
-                                ✅
-                              </ActionButton>
-                              <ActionButton onClick={() => setEditingReport(null)}>
-                                ❌
-                              </ActionButton>
-                            </div>
-                          ) : (
-                            <ReportTitle>{report.report_title}</ReportTitle>
+                  <div className="space-y-3">
+                    {medicalReports.map(report => (
+                      <div key={report.id} className="flex items-start justify-between gap-3 p-3 rounded-lg border bg-secondary/30 hover:bg-secondary/50 transition-colors">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{report.report_title}</p>
+                          {report.overall_analysis?.final_diagnosis && (
+                            <p className="text-xs text-muted-foreground truncate">{report.overall_analysis.final_diagnosis}</p>
                           )}
+                          <p className="text-xs text-muted-foreground mt-0.5">{formatDate(report.created_at)}</p>
                         </div>
-                        <ReportDate>
-                          {formatDate(report.created_at)}
-                        </ReportDate>
-                      </ReportHeader>
-                      
-                      <ReportSummary>
-                        {report.overall_analysis?.final_diagnosis && (
-                          <div>
-                            <strong>Diagnosis:</strong> {report.overall_analysis.final_diagnosis}
-                          </div>
-                        )}
-                        {report.overall_analysis?.final_confidence && (
-                          <div>
-                            <strong>Confidence:</strong> {(report.overall_analysis.final_confidence * 100).toFixed(1)}%
-                          </div>
-                        )}
-                        {report.patient_symptoms && (
-                          <div>
-                            <strong>Symptoms:</strong> {report.patient_symptoms.substring(0, 100)}
-                            {report.patient_symptoms.length > 100 && '...'}
-                          </div>
-                        )}
-                      </ReportSummary>
-                      
-                      <ReportActions>
-                        <ActionButton onClick={() => handleReportView(report)}>
-                          👁️ View
-                        </ActionButton>
-                        <ActionButton 
-                          onClick={() => handleReportTitleEdit(report.id, report.report_title)}
-                        >
-                          ✏️ Edit Title
-                        </ActionButton>
-                        <ActionButton 
-                          className="danger"
-                          onClick={() => handleReportDelete(report.id)}
-                        >
-                          🗑️ Delete
-                        </ActionButton>
-                      </ReportActions>
-                    </ReportCard>
-                  ))
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setSelectedReport(report)}>
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleReportDelete(report.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
-              </ReportsContainer>
-            )}
-          </SectionCard>
-        </ProfileGrid>
-      </ProfileWrapper>
-      
-      {/* Medical Report Modal */}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+      </div>
+
       {selectedReport && (
         <MedicalReportModal
           report={selectedReport}
           onClose={() => setSelectedReport(null)}
         />
       )}
-    </>
+    </PageLayout>
   );
 };
 
