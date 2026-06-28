@@ -24,6 +24,14 @@ supabase: Client = create_client(url, key)
 # JWT Secret for cookies
 JWT_SECRET = os.getenv("JWT_SECRET")
 
+# Cross-domain auth: in production the frontend and backend run on different
+# domains, so the browser only sends the auth cookie on API calls if it's
+# SameSite=None + Secure. Local dev is same-origin over HTTP, where Lax +
+# non-secure works (and SameSite=None would be rejected without HTTPS).
+_PROD = os.getenv("APP_ENV", "development") == "production"
+_COOKIE_SAMESITE = "none" if _PROD else "lax"
+_COOKIE_SECURE = _PROD
+
 # --- Pydantic Models ---
 class UserCreate(BaseModel):
     name: str
@@ -60,8 +68,8 @@ def set_auth_cookie(response: Response, user_data: dict):
         key="access_token",
         value=encoded_jwt,
         httponly=True,
-        samesite="lax",
-        secure=False # Set to True in production with HTTPS
+        samesite=_COOKIE_SAMESITE,
+        secure=_COOKIE_SECURE,
     )
 
 # --- API Endpoints ---
@@ -205,7 +213,13 @@ async def login_user(user_data: UserLogin, response: Response):
 
 @router.post("/patient/logout")
 def logout_user(response: Response):
-    response.delete_cookie("access_token")
+    # Must match the attributes used in set_auth_cookie, or the browser won't
+    # clear a SameSite=None; Secure cookie on logout.
+    response.delete_cookie(
+        "access_token",
+        samesite=_COOKIE_SAMESITE,
+        secure=_COOKIE_SECURE,
+    )
     return {"message": "Logout successful"}
 
 # --- Dependency to get current user from cookie ---
