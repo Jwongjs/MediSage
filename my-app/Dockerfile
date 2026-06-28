@@ -18,5 +18,13 @@ RUN npm run build
 # nginx:alpine is ~20MB. The final image will be ~25MB total.
 FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Railway injects $PORT and healthchecks it; nginx must listen there, not a
+# hardcoded 80. The nginx:alpine entrypoint runs envsubst over
+# /etc/nginx/templates/*.template -> /etc/nginx/conf.d/ at startup.
+# NGINX_ENVSUBST_FILTER=PORT limits substitution to ${PORT} so nginx's own
+# $uri variables are left intact. PORT defaults to 80 for local `docker run`.
+COPY nginx.conf /etc/nginx/templates/default.conf.template
+ENV PORT=80
+ENV NGINX_ENVSUBST_FILTER=PORT
 EXPOSE 80
