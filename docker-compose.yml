@@ -1,0 +1,39 @@
+version: "3.9"
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"       # host_port:container_port
+    env_file:
+      - ./backend/.env    # loads your local .env into the container
+    environment:
+      # Override these two so they point to the other containers by service name.
+      # Docker Compose DNS resolves "redis" → the redis container's internal IP.
+      - REDIS_URL=redis://redis:6379
+      - ALLOWED_ORIGINS=http://localhost:3000
+      - APP_ENV=development
+    depends_on:
+      - redis
+    volumes:
+      # Mount local code into the container so file changes reflect immediately.
+      # Combined with --reload, you edit locally and the server hot-reloads.
+      - ./backend:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build: ./my-app
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+  redis:
+    image: redis:7-alpine   # official, minimal (~20MB)
+    ports:
+      - "6379:6379"         # expose for local debugging with Redis Insight etc.
+    volumes:
+      - redis_data:/data    # persists data across container restarts
+
+volumes:
+  redis_data:
