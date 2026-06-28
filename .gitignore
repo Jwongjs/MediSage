@@ -17,6 +17,9 @@ my-app_old/
 # service-account credential + large binaries; not used by the app)
 backend_reference_example/
 
+# Internal docs (plans, specs, references) — kept on disk, not pushed
+docs/
+
 # AI Models (large files - tracked with Git LFS)
 # Note: Only specific AI model files are tracked with Git LFS
 # Exclude other model files and files too large for GitHub LFS (>2GB)
@@ -25,6 +28,7 @@ backend/ai_models/JSL-MedLlama-3-8B-v2.0-Q8_0.gguf
 backend/ai_models/Llama-3.1-8B-UltraMedical.Q8_0.gguf
 backend/ai_models/Llama-3.1-8B-UltraMedical.Q4_K_M.gguf
 backend/test/
+backend/adapters/
 
 # Environment variables
 .env
