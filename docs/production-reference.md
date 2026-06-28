@@ -314,3 +314,104 @@ These require dashboard/account access and are **not done by the code above**:
 4. **Production smoke test** — `curl https://<backend>.up.railway.app/health` should return
    `{"status":"healthy","checks":{"database":"ok","llm":"ok"}}`; load the frontend URL and run
    one diagnosis end-to-end.
+
+---
+
+## First-Time Railway Deploy — Step-by-Step Runbook
+
+One-time setup. After this, merges to `main` auto-deploy via GitHub Actions. MediSage is a
+monorepo with **two services** (`backend/`, `my-app/`), so the reliable path is the **dashboard**
+— Railway provisions one service per Dockerfile and you point each at its subdirectory. The
+committed `railway.toml` is a reference for the build/healthcheck settings, not a full
+multi-service auto-provisioner.
+
+### Step 0 — Prerequisites
+- A [railway.app](https://railway.app) account (sign in with GitHub — makes repo deploys one click).
+- Railway's free trial / hobby plan is enough to start. Redis + 2 services fit the hobby tier.
+- Your backend secrets handy (the same values from `backend/.env`).
+
+### Step 1 — Create the project
+**Dashboard (recommended):**
+1. railway.app → **New Project**.
+2. Choose **Deploy from GitHub repo** → authorize Railway → pick the `MediSage` repo.
+3. When it asks what to deploy, Railway will try to build the repo root — that's fine, we'll
+   fix the service to target `backend/` in Step 2. Name this first service **`backend`**.
+
+**CLI (alternative):**
+```bash
+npm install -g @railway/cli
+railway login                 # opens browser
+cd c:/Users/user/Desktop/MediSage
+railway init                  # creates a new project, prompts for a name
+```
+
+### Step 2 — Configure the **backend** service
+In the service → **Settings**:
+- **Source Repo:** `MediSage`, branch `main` (or your deploy branch).
+- **Root Directory:** `backend`
+- **Build:** Dockerfile (Railway auto-detects `backend/Dockerfile`). If asked for a path, use `backend/Dockerfile`.
+- **Deploy → Healthcheck Path:** `/health`, timeout `30`.
+- **Networking → Generate Domain** → gives you `https://<backend>.up.railway.app`. **Copy this URL.**
+
+### Step 3 — Add the **frontend** service
+1. In the same project → **+ New** → **GitHub Repo** → same `MediSage` repo (or **Empty Service** then set the source).
+2. Service → **Settings**:
+   - **Root Directory:** `my-app`
+   - **Build:** Dockerfile (`my-app/Dockerfile`)
+   - **Deploy → Healthcheck Path:** `/health`, timeout `10`
+   - **Networking → Generate Domain** → gives you `https://<frontend>.up.railway.app`. **Copy this URL.**
+
+### Step 4 — Add Redis
+- Project canvas → **+ New** → **Database** → **Add Redis**.
+- Railway auto-injects **`REDIS_URL`** into services in the same project. Confirm it appears in the
+  backend service's Variables (if not, add a reference variable `REDIS_URL = ${{Redis.REDIS_URL}}`).
+
+### Step 5 — Set environment variables
+Backend service → **Variables** (paste the real values from `backend/.env`):
+```
+LLM_BASE_URL=https://api.groq.com/openai/v1
+LLM_MODEL=llama-3.3-70b-versatile
+LLM_API_KEY=gsk_...
+SUPABASE_URL=https://xxxx.supabase.co
+SUPABASE_API_KEY=...            # anon key
+SUPABASE_DB_URL=postgresql://postgres:[pw]@db.xxxx.supabase.co:5432/postgres
+GEMINI_API_KEY=AIza...
+JWT_SECRET=...                  # 32+ chars
+APP_ENV=production
+ALLOWED_ORIGINS=https://<frontend>.up.railway.app    # from Step 3, NO trailing slash
+# REDIS_URL is injected by the Redis plugin — don't set it by hand
+```
+Frontend service → **Variables**:
+```
+VITE_API_URL=https://<backend>.up.railway.app        # from Step 2
+```
+> **Chicken-and-egg:** `ALLOWED_ORIGINS` and `VITE_API_URL` need the *other* service's URL, which
+> only exists after a domain is generated. If you generated both domains in Steps 2–3 you can fill
+> them now. `VITE_API_URL` is **build-time** (Vite bakes it into the bundle), so after setting it
+> the frontend must **rebuild/redeploy** to take effect.
+
+### Step 6 — Deploy
+- Dashboard: each service deploys automatically on save; use **Deploy** / **Redeploy** to force one.
+- CLI: `railway up` (deploys the linked service).
+
+### Step 7 — Smoke test
+```bash
+curl https://<backend>.up.railway.app/health
+# expect: {"status":"healthy","checks":{"database":"ok","llm":"ok"}}
+```
+Then open `https://<frontend>.up.railway.app`, log in, and run one diagnosis end-to-end. If the
+browser shows a CORS error, re-check `ALLOWED_ORIGINS` matches the frontend URL exactly (no trailing `/`).
+
+### Step 8 — Wire up CI auto-deploy (optional but recommended)
+So pushes to `main` deploy without the CLI:
+1. Railway → **Account Settings → Tokens → Create Token** (or a project token). Copy it.
+2. GitHub repo → **Settings → Secrets and variables → Actions** → add `RAILWAY_TOKEN` (plus the
+   other secrets listed in [CI/CD Pipeline](#cicd-pipeline)).
+3. The `deploy` job in `.github/workflows/ci.yml` runs `railway up --detach` on every push to `main`.
+
+> The CI `deploy` job deploys the **linked** service. For two services you can either run two
+> `railway up --service <name>` steps, or rely on Railway's native GitHub integration (Steps 2–3
+> already auto-deploy each service on push) and treat the CI deploy job as a backstop.
+
+### Rollback
+Railway Dashboard → service → **Deployments** → pick a previous green deploy → **Redeploy**.
