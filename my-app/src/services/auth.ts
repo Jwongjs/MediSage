@@ -6,7 +6,10 @@ import {
   UserUpdate
 } from '../types/auth';
 
-const API_BASE_URL = '';
+// Empty in dev: Vite proxies /auth, /patient, /chat, /health to localhost:8000.
+// In production (separate frontend/backend domains) set VITE_API_URL to the
+// backend's URL so these calls are absolute instead of same-origin.
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 export class AuthService {
   static async register(userData: RegisterData): Promise<AuthResponse> {
