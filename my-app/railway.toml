@@ -1,0 +1,12 @@
+# Frontend service config. Set this service's Root Directory to "my-app" in the
+# Railway dashboard so this file and the Dockerfile path resolve correctly.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 10
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
