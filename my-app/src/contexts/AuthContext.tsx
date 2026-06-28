@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { AuthService } from 'services/auth';
 import { UserProfile } from 'types/auth';
-import { LoadingSpinner } from 'components/common/LoadingSpinner';
+import { Loader2 } from 'lucide-react';
 
 interface AuthContextType {
   loggedIn: boolean;
@@ -59,7 +59,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const value = { loggedIn, user, login, logout };
 
   if (loading) {
-    return <LoadingSpinner message="Checking session..." />;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
   }
 
   return (

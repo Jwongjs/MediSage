@@ -2,13 +2,11 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 import { Check } from 'lucide-react';
 
-export type DiagnosisStage = 'intake' | 'symptoms' | 'analysis' | 'signs' | 'followup' | 'report';
+export type DiagnosisStage = 'symptoms' | 'analysis' | 'followup' | 'report';
 
 const STAGES: { id: DiagnosisStage; label: string }[] = [
-  { id: 'intake',   label: 'Intake'    },
   { id: 'symptoms', label: 'Symptoms'  },
   { id: 'analysis', label: 'Analysis'  },
-  { id: 'signs',    label: 'Signs'     },
   { id: 'followup', label: 'Follow-up' },
   { id: 'report',   label: 'Report'    },
 ];

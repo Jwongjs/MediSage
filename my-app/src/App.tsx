@@ -7,6 +7,8 @@ import RegisterPage from 'views/registerpage';
 import ProfilePage from 'views/profilepage';
 import ConfirmationPending from 'views/confirmationpage';
 import ChatbotPage from 'views/chatbot';
+import PrivacyPolicyPage from 'views/privacypolicy';
+import TermsPage from 'views/terms';
 
 function App(): React.JSX.Element {
   return (
@@ -18,6 +20,8 @@ function App(): React.JSX.Element {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/confirmation-pending" element={<ConfirmationPending />} />
+      <Route path="/privacy" element={<PrivacyPolicyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
     </Routes>
   );
 }

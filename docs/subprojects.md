@@ -162,7 +162,7 @@ Reference doc for subagents and future sessions. Each SP is an independent unit 
 | SP | Status | Blocked by | Notes |
 |----|--------|-----------|-------|
 | SP1 | ✅ Complete | — | Groq API migration done. EfficientNet removed. Privacy policy gate live. `001_privacy_policy.sql` applied to Supabase. |
-| SP2 | 🟡 In design | SP1 | Checkpointer: AsyncPostgresSaver → AsyncRedisSaver (SP5). Embedding: Gemini text-embedding-004. Vector store: pgvector. |
+| SP2 | ✅ Complete | — | LangGraph graph-only routing. AsyncPostgresSaver. RAG chatbot with pgvector + gemini-embedding-001. ChatPanel UI. 25/25 tests passing. |
 | SP3 | ⬜ Not started | SP2 | — |
-| SP4 | ⬜ Not started | SP1 (for gate UI) | Layout/design work can start in parallel |
-| SP5 | 🟡 Partial | SP1 | RLS migration created. Rest blocked on stable codebase. |
+| SP4 | ✅ Complete | — | Vite + Tailwind CSS + shadcn/ui. Instrument Serif + DM Sans. Dark navy hero. All pages migrated. styled-components removed. 0 TS errors, clean build. |
+| SP5 | 🟡 In design | — | Plan written: `docs/superpowers/plans/2026-06-09-sp5-production-hardening.md`. Reference doc: `docs/production-reference.md`. Ready to implement. |

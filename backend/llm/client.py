@@ -17,7 +17,7 @@ class LLMClient:
     def __init__(self):
         self.llm = ChatGroq(
             model=os.getenv("LLM_MODEL", "llama-3.3-70b-versatile"),
-            groq_api_key=os.getenv("LLM_API_KEY", "dummy"),
+            groq_api_key=os.getenv("LLM_API_KEY")
         )
 
     async def complete(self, messages: list[dict], **kwargs) -> str:

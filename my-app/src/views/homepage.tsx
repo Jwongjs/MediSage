@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from 'contexts/AuthContext';
 import { PageLayout } from 'components/layout/PageLayout';
+import { Footer } from 'components/layout/Footer';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -47,47 +48,52 @@ const Homepage: React.FC = () => {
   return (
     <PageLayout>
 
-      {/* Hero — dark navy with diagonal clip and dot-grid texture */}
-      <section
-        className="relative overflow-hidden bg-[#0D1B2A]"
-        style={{ clipPath: 'polygon(0 0, 100% 0, 100% 88%, 0 100%)', paddingBottom: '7rem' }}
-      >
-        {/* Dot-grid texture */}
+      {/* Hero — light jade wash with dot-vector texture */}
+      <section className="relative overflow-hidden">
+        {/* Soft jade wash fading into the page background */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: 'linear-gradient(180deg, hsl(160 45% 95%), hsl(var(--background)))' }}
+        />
+        {/* Dot-vector texture, fading toward the bottom */}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Ccircle cx='20' cy='20' r='1' fill='%23ffffff' fill-opacity='0.04'/%3E%3C/svg%3E")`,
+            backgroundImage: 'radial-gradient(circle, hsl(var(--primary) / 0.18) 1.5px, transparent 1.5px)',
+            backgroundSize: '26px 26px',
+            maskImage: 'radial-gradient(ellipse 90% 95% at 70% 0%, black 25%, transparent 72%)',
+            WebkitMaskImage: 'radial-gradient(ellipse 90% 95% at 70% 0%, black 25%, transparent 72%)',
           }}
         />
-        {/* Sky radial glow */}
+        {/* Jade radial glow */}
         <div
           className="absolute inset-0 pointer-events-none"
-          style={{ background: 'radial-gradient(ellipse 60% 50% at 70% 40%, rgba(14,165,233,0.12), transparent)' }}
+          style={{ background: 'radial-gradient(ellipse 55% 50% at 75% 30%, hsl(var(--accent) / 0.10), transparent)' }}
         />
 
-        <div className="container mx-auto max-w-6xl px-4 pt-20 pb-4 md:pt-28 relative z-10">
+        <div className="container mx-auto max-w-6xl px-4 pt-20 pb-28 md:pt-28 relative z-10">
           <div className="max-w-2xl">
             <Badge
               variant="outline"
-              className="mb-6 text-xs font-medium border-sky-400/30 bg-sky-400/10 text-sky-300 gap-1.5 animate-fade-in-up"
+              className="mb-6 text-xs font-medium border-primary/25 bg-primary/10 text-primary gap-1.5 animate-fade-in-up"
               style={{ animationDelay: '0ms' }}
             >
               <Activity className="h-3 w-3" />AI-powered medical assistant
             </Badge>
             <h1
-              className="font-display text-4xl md:text-5xl lg:text-[3.5rem] font-normal leading-[1.1] mb-2 text-white animate-fade-in-up"
+              className="font-display text-4xl md:text-5xl lg:text-[3.5rem] font-normal leading-[1.1] mb-2 text-foreground animate-fade-in-up"
               style={{ animationDelay: '80ms' }}
             >
               Medical clarity,
             </h1>
             <h1
-              className="font-display text-4xl md:text-5xl lg:text-[3.5rem] font-normal italic leading-[1.1] mb-6 text-sky-300 animate-fade-in-up"
+              className="font-display text-4xl md:text-5xl lg:text-[3.5rem] font-normal italic leading-[1.1] mb-6 text-primary animate-fade-in-up"
               style={{ animationDelay: '160ms' }}
             >
               powered by AI.
             </h1>
             <p
-              className="text-lg text-slate-300 mb-8 leading-relaxed animate-fade-in-up"
+              className="text-lg text-muted-foreground mb-8 leading-relaxed animate-fade-in-up"
               style={{ animationDelay: '240ms' }}
             >
               Describe your symptoms and receive a structured differential diagnosis, guided sign checks, and a downloadable medical report — in minutes.
@@ -98,7 +104,7 @@ const Homepage: React.FC = () => {
             >
               <Button
                 size="lg"
-                className="gap-2 text-base bg-sky-500 hover:bg-sky-400 text-white border-0"
+                className="gap-2 text-base"
                 onClick={() => navigate(cta)}
               >
                 Start your assessment<ArrowRight className="h-4 w-4" />
@@ -107,7 +113,7 @@ const Homepage: React.FC = () => {
                 <Button
                   size="lg"
                   variant="outline"
-                  className="border-white/20 text-white hover:bg-white/10 hover:text-white"
+                  className="border-primary/40 bg-transparent text-primary hover:bg-primary/10 hover:text-primary"
                   asChild
                 >
                   <Link to="/login">Sign in</Link>
@@ -118,11 +124,14 @@ const Homepage: React.FC = () => {
               className="flex flex-wrap items-center gap-x-6 gap-y-2 animate-fade-in-up"
               style={{ animationDelay: '400ms' }}
             >
-              <span className="flex items-center gap-1.5 text-sm text-slate-400">
-                <ShieldCheck className="h-4 w-4 text-emerald-400" />No real PHI stored
+              <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <ShieldCheck className="h-4 w-4 text-primary" />Encrypted & private — you control your data
               </span>
-              <span className="flex items-center gap-1.5 text-sm text-slate-400">
-                <Clock className="h-4 w-4 text-emerald-400" />Results in under 2 min
+              <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <FileText className="h-4 w-4 text-primary" />Reports saved only when you choose
+              </span>
+              <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <Clock className="h-4 w-4 text-primary" />Results in under 2 min
               </span>
             </div>
           </div>
@@ -182,6 +191,8 @@ const Homepage: React.FC = () => {
           </p>
         </div>
       </section>
+
+      <Footer />
 
     </PageLayout>
   );

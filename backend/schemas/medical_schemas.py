@@ -35,11 +35,7 @@ WorkflowAction = Literal[
 
 WorkflowPathType = Literal[
     "textual_only",
-    "textual_to_skin_screening",
-    "textual_to_followup",
     "followup_only",
-    "skin_to_standard_followup",
-    "skin_cancer_high_risk",
 ]
 
 class WorkflowInfo(TypedDict, total=False):
@@ -85,9 +81,9 @@ class AgentState(TypedDict, total=False):
     session_id: str #Unique ID for session
     workflow: WorkflowInfo #Unified worfklow info- single source of truth
     current_workflow_stage: str | None
+    latest_user_message: str | None # Raw user input for the current turn; MUST be declared here or LangGraph drops it at graph entry
     
     #Data tracking
-    requires_skin_cancer_screening: bool | None  # Flag for skin cancer screening
     workflow_path: list[WorkflowPathType] | None
     average_confidence: float | None # Average confidence score across all diagnoses for textual analysis and follow-up diagnosis
 
@@ -97,15 +93,13 @@ class AgentState(TypedDict, total=False):
     textual_analysis: list[TextualSymptomAnalysisResult] | None 
 
     #Follow-up stage (if required based on confidence)
-    followup_type: Literal["standard", "skin_cancer_screening"] | None
+    followup_type: Literal["standard"] | None
     requires_user_input: bool | None # Indicates if user input is required for follow-up questions
     followup_questions: list[str] | None
     followup_response: dict[str, str] | None # Follow-up responses from user
+    followup_responses: dict[str, str] | None # Stored copy of the answered follow-up responses
     followup_qna_overall: str | None # Combined Q&A pairs from follow-up interaction
     followup_diagnosis: list[TextualSymptomAnalysisResult] |  None
-    skin_cancer_risk_detected: bool | None # Result of skin cancer risk analysis
-    
-    skin_cancer_risk_metrics: dict[str, Any] | None  # Detailed ABCDE scoring and risk analysis
 
     #STAGE 2: Overall Analysis
     overall_analysis: OverallAnalysisResult | None

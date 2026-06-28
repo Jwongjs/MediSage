@@ -1,210 +1,122 @@
 import React from 'react';
-import styled from 'styled-components';
-import { Button } from 'components/common/Button';
-import { Card } from 'components/common/Card';
 import { MedicalReport } from 'services/report';
-
-const ModalOverlay = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 1rem;
-`;
-
-const ModalContent = styled.div`
-  background: white;
-  border-radius: 8px;
-  max-width: 800px;
-  width: 100%;
-  max-height: 90vh;
-  overflow-y: auto;
-  position: relative;
-`;
-
-const ModalHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem;
-  border-bottom: 1px solid #e9ecef;
-  
-  h2 {
-    margin: 0;
-    color: var(--dark);
-  }
-`;
-
-const ModalBody = styled.div`
-  padding: 1.5rem;
-`;
-
-const CloseButton = styled.button`
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  padding: 0.5rem;
-  
-  &:hover {
-    background: #f8f9fa;
-    border-radius: 4px;
-  }
-`;
-
-const ReportSection = styled.div`
-  margin-bottom: 2rem;
-  
-  h3 {
-    margin: 0 0 1rem 0;
-    color: var(--primary);
-    font-size: 1.2rem;
-  }
-  
-  p {
-    margin: 0.5rem 0;
-    line-height: 1.6;
-  }
-`;
-
-const MetaInfo = styled.div`
-  background: #f8f9fa;
-  padding: 1rem;
-  border-radius: 4px;
-  margin-bottom: 1.5rem;
-  
-  div {
-    margin-bottom: 0.5rem;
-    
-    strong {
-      display: inline-block;
-      width: 120px;
-      color: var(--dark);
-    }
-  }
-`;
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 
 interface MedicalReportModalProps {
   report: MedicalReport | null;
   onClose: () => void;
 }
 
-export const MedicalReportModal: React.FC<MedicalReportModalProps> = ({
-  report,
-  onClose
-}) => {
+const Row: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
+  <div className="flex items-start justify-between gap-4 py-1.5">
+    <span className="text-xs text-muted-foreground shrink-0 w-24">{label}</span>
+    <span className="text-xs text-right">{value}</span>
+  </div>
+);
+
+const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+  <div className="space-y-1.5">
+    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{title}</p>
+    {children}
+  </div>
+);
+
+export const MedicalReportModal: React.FC<MedicalReportModalProps> = ({ report, onClose }) => {
   if (!report) return null;
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+  const formatDate = (d: string) =>
+    new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+  const analysis = report.overall_analysis;
+  const recs = report.healthcare_recommendations;
 
   return (
-    <ModalOverlay onClick={onClose}>
-      <ModalContent onClick={(e) => e.stopPropagation()}>
-        <ModalHeader>
-          <h2>📋 {report.report_title}</h2>
-          <CloseButton onClick={onClose}>×</CloseButton>
-        </ModalHeader>
-        
-        <ModalBody>
-          <MetaInfo>
-            <div>
-              <strong>Created:</strong> {formatDate(report.created_at)}
+    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-2xl h-[85vh] flex flex-col p-0">
+        <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
+          <DialogTitle className="text-base leading-snug">{report.report_title}</DialogTitle>
+        </DialogHeader>
+
+        <ScrollArea className="flex-1 px-6 pb-6">
+          <div className="space-y-5">
+            <div className="bg-secondary/40 rounded-lg p-4 space-y-0.5">
+              <Row label="Created" value={formatDate(report.created_at)} />
+              <Row label="Session" value={<span className="font-mono text-xs">{report.session_id}</span>} />
+              <Row label="Status" value={<Badge variant="outline" className="text-xs">{report.report_status}</Badge>} />
+              {analysis?.final_diagnosis && <Row label="Diagnosis" value={analysis.final_diagnosis} />}
+              {analysis?.final_confidence != null && (
+                <Row label="Confidence" value={`${(analysis.final_confidence * 100).toFixed(1)}%`} />
+              )}
+              {analysis?.specialist_recommendation && (
+                <Row label="Specialist" value={analysis.specialist_recommendation.replace('_', ' ')} />
+              )}
             </div>
-            <div>
-              <strong>Session ID:</strong> {report.session_id}
-            </div>
-            <div>
-              <strong>Status:</strong> {report.report_status}
-            </div>
-            {report.overall_analysis?.final_diagnosis && (
-              <div>
-                <strong>Diagnosis:</strong> {report.overall_analysis.final_diagnosis}
-              </div>
+
+            {report.patient_symptoms && (
+              <>
+                <Separator />
+                <Section title="Patient Symptoms">
+                  <p className="text-sm leading-relaxed">{report.patient_symptoms}</p>
+                </Section>
+              </>
             )}
-            {report.overall_analysis?.final_confidence && (
-              <div>
-                <strong>Confidence:</strong> {(report.overall_analysis.final_confidence * 100).toFixed(1)}%
-              </div>
+
+            {analysis?.user_explanation && (
+              <>
+                <Separator />
+                <Section title="Explanation">
+                  <p className="text-sm leading-relaxed">{analysis.user_explanation}</p>
+                </Section>
+              </>
             )}
-            {report.overall_analysis?.specialist_recommendation && (
-              <div>
-                <strong>Specialist:</strong> {report.overall_analysis.specialist_recommendation.replace('_', ' ')}
-              </div>
+
+            {analysis?.clinical_reasoning && (
+              <>
+                <Separator />
+                <Section title="Clinical Reasoning">
+                  <p className="text-sm leading-relaxed text-muted-foreground">{analysis.clinical_reasoning}</p>
+                </Section>
+              </>
             )}
-          </MetaInfo>
 
-          {report.patient_symptoms && (
-            <ReportSection>
-              <h3>🩺 Patient Symptoms</h3>
-              <p>{report.patient_symptoms}</p>
-            </ReportSection>
-          )}
+            {recs && (recs.immediate_actions || recs.specialist_referral) && (
+              <>
+                <Separator />
+                <Section title="Healthcare Recommendations">
+                  {recs.immediate_actions && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium">Immediate actions</p>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{recs.immediate_actions}</p>
+                    </div>
+                  )}
+                  {recs.specialist_referral && (
+                    <div className="space-y-1 mt-3">
+                      <p className="text-xs font-medium">Specialist referral</p>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{recs.specialist_referral}</p>
+                    </div>
+                  )}
+                </Section>
+              </>
+            )}
 
-          {report.overall_analysis?.user_explanation && (
-            <ReportSection>
-              <h3>📖 Explanation</h3>
-              <p>{report.overall_analysis.user_explanation}</p>
-            </ReportSection>
-          )}
-
-          {report.overall_analysis?.clinical_reasoning && (
-            <ReportSection>
-              <h3>🔬 Clinical Reasoning</h3>
-              <p>{report.overall_analysis.clinical_reasoning}</p>
-            </ReportSection>
-          )}
-
-          {report.healthcare_recommendations && (
-            <ReportSection>
-              <h3>🏥 Healthcare Recommendations</h3>
-              <div>
-                {report.healthcare_recommendations.immediate_actions && (
-                  <div>
-                    <strong>Immediate Actions:</strong>
-                    <p>{report.healthcare_recommendations.immediate_actions}</p>
+            {report.medical_report_content && (
+              <>
+                <Separator />
+                <Section title="Full Medical Report">
+                  <div className="bg-secondary/30 rounded border p-4">
+                    <pre className="text-xs font-mono whitespace-pre-wrap leading-relaxed">
+                      {report.medical_report_content}
+                    </pre>
                   </div>
-                )}
-                {report.healthcare_recommendations.specialist_referral && (
-                  <div>
-                    <strong>Specialist Referral:</strong>
-                    <p>{report.healthcare_recommendations.specialist_referral}</p>
-                  </div>
-                )}
-              </div>
-            </ReportSection>
-          )}
-
-          {report.medical_report_content && (
-            <ReportSection>
-              <h3>📄 Full Medical Report</h3>
-              <div style={{ 
-                whiteSpace: 'pre-wrap', 
-                fontFamily: 'Georgia, serif',
-                background: '#fff',
-                padding: '1rem',
-                border: '1px solid #e9ecef',
-                borderRadius: '4px'
-              }}>
-                {report.medical_report_content}
-              </div>
-            </ReportSection>
-          )}
-        </ModalBody>
-      </ModalContent>
-    </ModalOverlay>
+                </Section>
+              </>
+            )}
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
   );
 };

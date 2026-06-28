@@ -8,9 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Send, Loader2, Bot, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PrivacyPolicyModal } from 'components/medical/PrivacyPolicyModal';
 
 export const ChatPanel: React.FC = () => {
-  const { messages, sendMessage, loading } = useChat();
+  const { messages, sendMessage, loading, showPrivacyModal, handlePrivacyAccepted, dismissPrivacyModal } = useChat();
   const { loggedIn } = useAuth();
   const [input, setInput] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -28,6 +29,10 @@ export const ChatPanel: React.FC = () => {
   };
 
   return (
+    <>
+    {showPrivacyModal && (
+      <PrivacyPolicyModal onAccept={handlePrivacyAccepted} onCancel={dismissPrivacyModal} />
+    )}
     <div className="flex flex-col h-full border rounded-xl overflow-hidden bg-card shadow-sm">
       <div className="flex items-center gap-2.5 px-4 py-3 border-b bg-secondary/30 shrink-0">
         <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center shrink-0">
@@ -100,5 +105,6 @@ export const ChatPanel: React.FC = () => {
         )}
       </form>
     </div>
+    </>
   );
 };

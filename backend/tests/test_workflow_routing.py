@@ -7,17 +7,12 @@ from graphs.patient_workflow import _route_after_diagnosis, _route_after_followu
 
 
 def test_route_diagnosis_low_confidence_goes_to_followup():
-    state = {"average_confidence": 0.5, "requires_skin_cancer_screening": False}
+    state = {"average_confidence": 0.5}
     assert _route_after_diagnosis(state) == "generate_followup_questions"
 
 
-def test_route_diagnosis_skin_cancer_flag_goes_to_followup():
-    state = {"average_confidence": 0.9, "requires_skin_cancer_screening": True}
-    assert _route_after_diagnosis(state) == "generate_followup_questions"
-
-
-def test_route_diagnosis_high_confidence_no_screening_goes_to_overall():
-    state = {"average_confidence": 0.8, "requires_skin_cancer_screening": False}
+def test_route_diagnosis_high_confidence_goes_to_overall():
+    state = {"average_confidence": 0.8}
     assert _route_after_diagnosis(state) == "overall_analysis"
 
 

@@ -1,7 +1,9 @@
 from google import genai
+from google.genai import types
 from config import settings
 
-_MODEL = "text-embedding-004"
+_MODEL = "gemini-embedding-001"
+_DIMENSIONS = 768
 _CHUNK_SIZE = 500
 _CHUNK_OVERLAP = 50
 
@@ -16,13 +18,19 @@ def _get_client() -> genai.Client:
 
 
 async def embed_text(text: str) -> list[float]:
-    result = _get_client().models.embed_content(model=_MODEL, contents=text)
+    result = _get_client().models.embed_content(
+        model=_MODEL,
+        contents=text,
+        config=types.EmbedContentConfig(output_dimensionality=_DIMENSIONS),
+    )
     return result.embeddings[0].values
 
 
 async def embed_chunks(texts: list[str]) -> list[list[float]]:
-    result = _get_client().models.embed_content(model=_MODEL, contents=texts)
-    return [e.values for e in result.embeddings]
+    # gemini-embedding-001 reliably accepts only a single input per request;
+    # multi-input batches can fail and silently abort ingestion. Embed each
+    # chunk individually using the same single-input path as embed_text.
+    return [await embed_text(text) for text in texts]
 
 
 def chunk_text(text: str, chunk_size: int = _CHUNK_SIZE, overlap: int = _CHUNK_OVERLAP) -> list[str]:

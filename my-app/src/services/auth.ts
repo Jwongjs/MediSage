@@ -6,7 +6,7 @@ import {
   UserUpdate
 } from '../types/auth';
 
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = '';
 
 export class AuthService {
   static async register(userData: RegisterData): Promise<AuthResponse> {

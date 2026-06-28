@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AgentState } from 'types/medical';
 import { DiagnosisProgress } from 'components/medical/DiagnosisProgress';
+import { useAuth } from 'contexts/AuthContext';
+import { MedicalReportService } from 'services/report';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, FileText, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Loader2, FileText, RotateCcw, AlertTriangle, Save, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface FinalReportPageProps {
@@ -27,7 +31,12 @@ const SEVERITY_CLASS: Record<string, string> = {
 export const FinalReportPage: React.FC<FinalReportPageProps> = ({
   workflowState, loading, onReset,
 }) => {
+  const { loggedIn } = useAuth();
   const [reportOpen, setReportOpen] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   if (loading || !workflowState?.overall_analysis) {
     return (
@@ -49,6 +58,20 @@ export const FinalReportPage: React.FC<FinalReportPageProps> = ({
   const alts = (workflowState.followup_diagnosis?.length ?? 0) > 1
     ? workflowState.followup_diagnosis!.slice(1, 4)
     : (workflowState.textual_analysis ?? []).slice(1, 4);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await MedicalReportService.saveMedicalReport(workflowState.session_id, workflowState);
+      setSaved(true);
+      setSaveOpen(false);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Failed to save report');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fade-in-up">
@@ -126,6 +149,15 @@ export const FinalReportPage: React.FC<FinalReportPageProps> = ({
       )}
 
       <div className="flex flex-col sm:flex-row gap-3">
+        {loggedIn && (saved ? (
+          <Button variant="outline" className="gap-2 flex-1 text-primary border-primary/40" disabled>
+            <CheckCircle2 className="h-4 w-4" />Saved to profile
+          </Button>
+        ) : (
+          <Button className="gap-2 flex-1" onClick={() => setSaveOpen(true)}>
+            <Save className="h-4 w-4" />Save to my account
+          </Button>
+        ))}
         {workflowState.medical_report && (
           <Button variant="outline" className="gap-2 flex-1" onClick={() => setReportOpen(r => !r)}>
             <FileText className="h-4 w-4" />{reportOpen ? 'Hide' : 'View'} full report
@@ -135,6 +167,36 @@ export const FinalReportPage: React.FC<FinalReportPageProps> = ({
           <RotateCcw className="h-4 w-4" />New diagnosis
         </Button>
       </div>
+
+      <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Save this report to your account?</DialogTitle>
+            <DialogDescription className="leading-relaxed">
+              Saving stores this report — your symptom descriptions, the AI analysis, and its
+              recommendations — as health data in your encrypted MediSage account.
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="text-sm text-muted-foreground space-y-2 list-disc pl-5">
+            <li>It stays in your profile until you delete it — deletion is permanent.</li>
+            <li>The chat assistant will use saved reports to answer your questions.</li>
+            <li>
+              See the{' '}
+              <Link to="/privacy" target="_blank" className="text-primary underline underline-offset-2">
+                Privacy Policy
+              </Link>{' '}
+              for how health data is handled.
+            </li>
+          </ul>
+          {saveError && <p className="text-sm text-destructive">{saveError}</p>}
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setSaveOpen(false)} disabled={saving}>Cancel</Button>
+            <Button onClick={handleSave} disabled={saving} className="gap-2">
+              {saving ? <><Loader2 className="h-4 w-4 animate-spin" />Saving…</> : 'I understand — save report'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {reportOpen && workflowState.medical_report && (
         <Card className="shadow-sm">

@@ -1,9 +1,11 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { WorkflowRouter } from 'WorkflowRouter';
 import { useDiagnosis } from 'hooks/useDiagnosis';
 import { PrivacyPolicyModal } from 'components/medical/PrivacyPolicyModal';
-import { ChatPanel } from 'components/medical/ChatPanel';
 import { PageLayout } from 'components/layout/PageLayout';
+import { Button } from '@/components/ui/button';
+import { MessageSquare, ArrowRight } from 'lucide-react';
 
 const DiagnosisFunction: React.FC = () => {
   const {
@@ -82,9 +84,23 @@ const handleSubmitFollowUp = async (responses: Record<string, string>) => {
           onSubmitFollowUp={handleSubmitFollowUp}
           onReset={reset}
         />
-        <section>
-          <ChatPanel />
-        </section>
+        <aside className="rounded-xl border bg-card shadow-sm p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+            <MessageSquare className="h-5 w-5 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold">Questions about a past session?</p>
+            <p className="text-sm text-muted-foreground">
+              The MediSage assistant answers from your saved reports — without interrupting this assessment.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" asChild className="shrink-0">
+            <Link to="/chatbot">Open chat<ArrowRight className="h-4 w-4 ml-1.5" /></Link>
+          </Button>
+        </aside>
+        <p className="text-xs text-center text-muted-foreground">
+          MediSage provides AI-assisted guidance for educational purposes and does not replace professional medical care.
+        </p>
       </div>
     </PageLayout>
   );

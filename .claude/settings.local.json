@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(python -c \"from api.auth_routes import router, require_privacy_policy; print\\('OK'\\)\")"
-    ]
-  }
-}

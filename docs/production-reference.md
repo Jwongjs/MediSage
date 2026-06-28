@@ -392,6 +392,23 @@ VITE_API_URL=https://<backend>.up.railway.app        # from Step 2
 
 ### Step 6 — Deploy
 - Dashboard: each service deploys automatically on save; use **Deploy** / **Redeploy** to force one.
+- Choose GitHub Repository.
+
+That's the entry that connects Railway to your MediSage repo and builds from your committed Dockerfiles. Here's the flow after you click it:
+
+1. **GitHub Repository** → authorize Railway (if first time) → pick MediSage.
+2. Railway creates a service and starts trying to build from the repo root. That first service will be your backend — go into its **Settings** and set **Root Directory** = backend so it uses backend/Dockerfile (not the repo root).
+3. Then add the **second service** for the frontend: + **New → GitHub Repo → same MediSage**, and set its Root Directory = my-app.
+4. Add Redis separately: + New → Database → Add Redis.
+   
+Why not the others:
+- **Database** → only provisions Redis/Postgres, not your app.
+- **Docker Image** → for a prebuilt image in a registry; yours builds from source via the Dockerfile, so skip it.
+- **Template / Function / Bucket / Empty Project** → not your case. (Empty Project would work but then you'd manually attach the GitHub source anyway — GitHub Repository does that in one step.)
+  
+Ignore the two AI suggestions at the top ("Create to-do list…", "Deploy Redis, Postgres, and a Bucket") — those are unrelated starters.
+
+This maps to Steps 1–2 of the runbook in docs/production-reference.md.
 - CLI: `railway up` (deploys the linked service).
 
 ### Step 7 — Smoke test

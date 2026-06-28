@@ -6,9 +6,10 @@ CONFIDENCE_THRESHOLD = 0.75
 
 
 def _route_after_diagnosis(state: AgentState) -> str:
-    if state.get("requires_skin_cancer_screening", False):
-        return "generate_followup_questions"
-    if (state.get("average_confidence") or 1.0) < CONFIDENCE_THRESHOLD:
+    confidence = state.get("average_confidence")
+    if confidence is None:
+        confidence = 1.0
+    if confidence < CONFIDENCE_THRESHOLD:
         return "generate_followup_questions"
     return "overall_analysis"
 
