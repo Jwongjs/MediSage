@@ -39,7 +39,7 @@ class MedicalReportNode:
     
     async def __call__(self, state: dict) -> dict:
         """Generate medical report content and optionally save to database"""
-        print("📄 MEDICAL REPORT NODE CALLED!")
+        logger.info("Medical report node called")
         
         # Set stage when node starts
         state["current_workflow_stage"] = "generating_medical_report"
@@ -56,7 +56,7 @@ class MedicalReportNode:
         """Generate optimized medical report using templates + minimal LLM generation"""
         
         try:
-            print("🔄 Generating template-based medical report...")
+            logger.info("Generating template-based medical report")
             
             # Generate only the dynamic content via LLM
             dynamic_content = await self._generate_followup_guidance(state)
@@ -67,11 +67,11 @@ class MedicalReportNode:
             # Store in state
             state["medical_report"] = final_report
             
-            print("✅ Template-based medical report generated successfully")
+            logger.info("Template-based medical report generated successfully")
             return state
-                
+
         except Exception as e:
-            print(f"❌ Medical report generation failed: {e}")
+            logger.error(f"Medical report generation failed: {e}")
             # Generate fallback report
             state["medical_report"] = self._generate_fallback_report(state)
             return state
@@ -98,7 +98,7 @@ class MedicalReportNode:
                 "user_id": user_id,
                 "session_id": session_id,
                 "report_title": report_title or f"Medical Report - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
-                "patient_symptoms": agent_state.get("userInput_symptoms") or agent_state.get("userInput_skin_symptoms"),
+                "patient_symptoms": agent_state.get("userInput_symptoms"),
                 "textual_analysis": agent_state.get("textual_analysis"),
                 "followup_data": {
                     "questions": agent_state.get("followup_questions"),

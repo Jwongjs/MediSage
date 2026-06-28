@@ -1,16 +1,19 @@
 import os
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, Form
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status, Form
 from supabase import create_client, Client
 from pydantic import BaseModel, EmailStr
 import jwt
 from datetime import datetime, timedelta
 from typing import Optional
 import json
+import logging
 
 from nodes import MedicalReportNode
 
 
 # --- Configuration & Setup ---
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 # Supabase Client
@@ -84,15 +87,18 @@ async def register_user(user_data: UserCreate, response: Response):
                     "id": user_session.user.id,
                     "name": user_data.name,
                     "age": user_data.age,
-                    "gender": user_data.gender
+                    "gender": user_data.gender,
+                    # Set explicitly so the consent gate does not depend on the DB
+                    # column default (which can drift if the table was created by hand).
+                    "privacy_policy_accepted": False
                 }
-                
+
                 # Insert or update user profile
                 supabase.table("user_profiles").upsert(profile_data).execute()
-                print(f"✅ User profile created for {user_session.user.email}")
-                
+                logger.info(f"User profile created for {user_session.user.email}")
+
             except Exception as profile_error:
-                print(f"⚠️ Failed to create user profile: {profile_error}")
+                logger.warning(f"Failed to create user profile: {profile_error}")
                 # Don't fail registration if profile creation fails
             
             # Prepare user data for cookie
@@ -172,12 +178,12 @@ async def login_user(user_data: UserLogin, response: Response):
                         "gender": user_cookie_data["gender"]
                     }
                     supabase.table("user_profiles").upsert(profile_data).execute()
-                    print(f"✅ Created missing user profile for {user_session.user.email}")
+                    logger.info(f"Created missing user profile for {user_session.user.email}")
                 except Exception as e:
-                    print(f"⚠️ Failed to create missing profile: {e}")
-                    
+                    logger.warning(f"Failed to create missing profile: {e}")
+
         except Exception as e:
-            print(f"⚠️ Failed to fetch user profile: {e}")
+            logger.warning(f"Failed to fetch user profile: {e}")
             # Fallback to user metadata
             user_cookie_data = {
                 "id": user_session.user.id,
@@ -194,7 +200,7 @@ async def login_user(user_data: UserLogin, response: Response):
             "user": user_cookie_data
         }
     except Exception as e:
-        print(f"Login error: {e}")
+        logger.error(f"Login error: {e}")
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
 @router.post("/patient/logout")
@@ -223,7 +229,7 @@ def get_current_user(request: Request):  #Removed async
             "gender": payload.get("gender", "")
         }
     except (jwt.PyJWTError, Exception) as e:
-        print(f"JWT decode error: {e}")
+        logger.warning(f"JWT decode error: {e}")
         return None
 
 
@@ -292,7 +298,7 @@ async def get_session(request: Request):
             return user
             
     except Exception as e:
-        print(f"⚠️ Failed to fetch profile from database: {e}")
+        logger.warning(f"Failed to fetch profile from database: {e}")
         # Fallback to cookie data
         return user
 
@@ -333,21 +339,21 @@ async def update_profile(profile_data: UserUpdate, request: Request, response: R
             try:
                 # Note: Updating email in Supabase Auth requires the user to be authenticated
                 # Sso this is a simplified version. If in production, need proper email verification
-                print(f"⚠️ Email update requested but not implemented: {user['email']} -> {profile_data.email}")
+                logger.warning(f"Email update requested but not implemented: {user['email']} -> {profile_data.email}")
                 # For now, keep the original email
                 updated_user_data["email"] = user["email"]
             except Exception as email_error:
-                print(f"⚠️ Failed to update email: {email_error}")
+                logger.warning(f"Failed to update email: {email_error}")
                 updated_user_data["email"] = user["email"]
         
         # Update the cookie
         set_auth_cookie(response, updated_user_data)
         
-        print(f"✅ Profile updated successfully for user {user['id']}")
+        logger.info(f"Profile updated successfully for user {user['id']}")
         return updated_user_data
-        
+
     except Exception as e:
-        print(f"Profile update error: {e}")
+        logger.error(f"Profile update error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to update profile: {str(e)}")
     
 @router.get("/patient/medical-reports")
@@ -394,8 +400,24 @@ async def get_medical_report(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
+async def _ingest_report_background(user_id: str, session_id: str, report_text: str) -> None:
+    try:
+        from rag.retriever import ingest_document
+        await ingest_document(
+            user_id=user_id,
+            source_type="medical_report",
+            source_id=session_id,
+            text=report_text,
+            metadata={"session_id": session_id},
+        )
+        logger.info(f"Background ingestion complete: session={session_id}")
+    except Exception as e:
+        logger.error(f"Background ingestion failed: session={session_id} error={e}")
+
+
 @router.post("/patient/save-medical-report")
 async def save_medical_report(
+    background_tasks: BackgroundTasks,
     session_id: str = Form(...),
     agent_state: str = Form(...),
     report_title: str | None = Form(None),
@@ -417,7 +439,13 @@ async def save_medical_report(
             agent_state_dict,
             report_title
         )
-        
+
+        report_text = agent_state_dict.get("medical_report", "")
+        if report_text:
+            background_tasks.add_task(
+                _ingest_report_background, user["id"], session_id, report_text
+            )
+
         return {
             "message": "Medical report saved successfully",
             "report_id": saved_report["id"],

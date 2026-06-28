@@ -1,6 +1,9 @@
 from typing import Dict, Any
 import re
+import logging
 from llm.client import llm_client
+
+logger = logging.getLogger(__name__)
 
 _SYSTEM_PROMPT = (
     "You are an AI medical assistant. Provide accurate, structured responses. "
@@ -10,7 +13,7 @@ _SYSTEM_PROMPT = (
 
 class OverallAnalysisNode:
     async def __call__(self, state):
-        print("OVERALL ANALYSIS NODE CALLED!")
+        logger.info("Overall analysis node called")
         state["current_workflow_stage"] = "performing_overall_analysis"
         
         state = await self.perform_overall_analysis(state)
@@ -21,25 +24,21 @@ class OverallAnalysisNode:
     async def perform_overall_analysis(self, state: Dict[str, Any]) -> Dict[str, Any]:
         try:
             workflow_path = state.get("workflow_path", [])
-            print(f"WORKFLOW PATH: {workflow_path}")
+            logger.info(f"Workflow path: {workflow_path}")
 
-            if workflow_path == ["textual_only"]:
-                enhanced_analysis = await self._analyze_textual_only(state)
-            elif (
-                "followup_only" in workflow_path
-                or "skin_to_standard_followup" in workflow_path
-                or "skin_cancer_high_risk" in workflow_path
-            ):
+            if "followup_only" in workflow_path:
                 enhanced_analysis = await self._analyze_textual_and_followup(state)
+            elif workflow_path == ["textual_only"]:
+                enhanced_analysis = await self._analyze_textual_only(state)
             else:
                 enhanced_analysis = await self._analyze_fallback(state)
 
             state["overall_analysis"] = enhanced_analysis
-            print(f"Overall analysis complete: {enhanced_analysis.get('final_diagnosis', 'Unknown')}")
+            logger.info(f"Overall analysis complete: {enhanced_analysis.get('final_diagnosis', 'Unknown')}")
             return state
 
         except Exception as e:
-            print(f"Overall analysis error: {e}")
+            logger.error(f"Overall analysis error: {e}")
             state["overall_analysis"] = self._fallback_analysis(state)
             return state
     

@@ -6,8 +6,10 @@ aiofiles
 langchain
 langgraph
 langgraph-checkpoint-postgres
+psycopg[binary]
+psycopg-pool
 google-generativeai
-pydantic
+pydantic[email]
 supabase
 PyJWT
 openai>=1.0.0
@@ -17,3 +19,8 @@ pytest>=7.4.0
 pytest-asyncio>=0.21.0
 httpx
 langchain-groq
+langsmith>=0.1.0
+email-validator
+python-multipart
+slowapi
+redis

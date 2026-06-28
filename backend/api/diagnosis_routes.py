@@ -1,30 +1,22 @@
-from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Depends, Request, Response
+from fastapi import APIRouter, Form, HTTPException, Depends, Request, Response
 from typing import Optional
 import uuid
 from datetime import datetime
 import logging
 import json
 
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
 from schemas.medical_schemas import AgentState
-from api.auth_routes import require_privacy_policy, get_current_user
+from api.auth_routes import require_privacy_policy
 
 diagnosis_router = APIRouter()
 logger = logging.getLogger(__name__)
 
-
-async def _ingest_report_background(user_id: str, session_id: str, report_text: str) -> None:
-    try:
-        from rag.retriever import ingest_document
-        await ingest_document(
-            user_id=user_id,
-            source_type="medical_report",
-            source_id=session_id,
-            text=report_text,
-            metadata={"session_id": session_id},
-        )
-        logger.info(f"Background ingestion complete: session={session_id}")
-    except Exception as e:
-        logger.error(f"Background ingestion failed: session={session_id} error={e}")
+# In-memory per-process limiter. The Redis ping in main.py confirms Redis
+# readiness for the post-SP5 shared store; rate counters here are per worker.
+limiter = Limiter(key_func=get_remote_address)
 
 
 async def _get_workflow_info(graph, config: dict, state: dict) -> dict:
@@ -60,6 +52,7 @@ async def _get_workflow_info(graph, config: dict, state: dict) -> dict:
 
 
 @diagnosis_router.post("/patient/textual_analysis", dependencies=[Depends(require_privacy_policy)])
+@limiter.limit("20/minute")
 async def run_textual_analysis(
     request: Request,
     user_symptoms: str = Form(..., description="Patient symptoms"),
@@ -84,6 +77,7 @@ async def run_textual_analysis(
 
 
 @diagnosis_router.post("/patient/followup_questions", dependencies=[Depends(require_privacy_policy)])
+@limiter.limit("20/minute")
 async def run_followup_questions(
     request: Request,
     session_id: str = Form(...),
@@ -107,6 +101,7 @@ async def run_followup_questions(
 
 
 @diagnosis_router.post("/patient/overall_analysis", dependencies=[Depends(require_privacy_policy)])
+@limiter.limit("20/minute")
 async def run_overall_analysis(request: Request, session_id: str = Form(...)):
     config = {"configurable": {"thread_id": session_id}}
     graph = request.app.state.patient_graph
@@ -120,9 +115,9 @@ async def run_overall_analysis(request: Request, session_id: str = Form(...)):
 
 
 @diagnosis_router.post("/patient/medical_report", dependencies=[Depends(require_privacy_policy)])
+@limiter.limit("20/minute")
 async def run_medical_report(
     request: Request,
-    background_tasks: BackgroundTasks,
     session_id: str = Form(...),
 ):
     config = {"configurable": {"thread_id": session_id}}
@@ -131,14 +126,6 @@ async def run_medical_report(
     try:
         result = await graph.ainvoke(None, config)
         workflow_info = await _get_workflow_info(graph, config, result)
-
-        user = get_current_user(request)
-        report_text = result.get("medical_report", "")
-        if user and report_text:
-            background_tasks.add_task(
-                _ingest_report_background, user["id"], session_id, report_text
-            )
-
         return {"success": True, "session_id": session_id, "result": result, "workflow_info": workflow_info}
     except Exception as e:
         logger.error(f"Medical report generation failed: {e}")
@@ -196,10 +183,28 @@ async def debug_routes():
 @diagnosis_router.get("/health")
 async def health_check():
     from config import settings
-    return {
+    health = {
         "status": "healthy",
-        "service": "AI Medical Diagnosis API",
         "version": "2.0.0",
-        "llm_model": settings.LLM_MODEL,
+        "env": settings.APP_ENV,
         "timestamp": datetime.now().isoformat(),
+        "checks": {},
     }
+
+    try:
+        from api.auth_routes import supabase
+        supabase.table("user_profiles").select("id").limit(1).execute()
+        health["checks"]["database"] = "ok"
+    except Exception as e:
+        health["checks"]["database"] = f"error: {e}"
+        health["status"] = "degraded"
+
+    try:
+        from llm.client import llm_client
+        await llm_client.complete([{"role": "user", "content": "ping"}], max_tokens=5)
+        health["checks"]["llm"] = "ok"
+    except Exception as e:
+        health["checks"]["llm"] = f"error: {e}"
+        health["status"] = "degraded"
+
+    return health
