@@ -22,4 +22,6 @@ EXPOSE 8000
 
 # workers=2 handles 2 concurrent requests per container instance.
 # Railway scales by adding more container instances, not more workers per instance.
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+# Shell form (not exec/JSON) so $PORT expands. Railway injects $PORT at runtime;
+# falls back to 8000 for local `docker run`.
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2
