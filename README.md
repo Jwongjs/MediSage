@@ -7,6 +7,26 @@ An AI medical-diagnosis assistant. Patients describe symptoms in plain language 
 
 ---
 
+## Screenshots
+
+> _Drop PNGs into `assets/screenshots/` (filenames below) and they'll render here._
+
+| Home | Diagnosis intake |
+|------|------------------|
+| ![Home page](assets/screenshots/home.png) | ![Diagnosis intake form](assets/screenshots/diagnosis-form.png) |
+
+| Analysis & follow-up questions | Final medical report |
+|--------------------------------|----------------------|
+| ![Analysis and follow-up questions](assets/screenshots/analysis.png) | ![Final medical report](assets/screenshots/report.png) |
+
+| RAG chatbot |
+|-------------|
+| ![RAG chatbot grounded in saved reports](assets/screenshots/chatbot.png) |
+
+<!-- TODO: capture and add the screenshots above (recommended width ~1200px). -->
+
+---
+
 ## How it works
 
 The backend is a [LangGraph](https://langchain-ai.github.io/langgraph/) state machine. Each stage is a node; routing between them is driven by confidence scores and the patient's answers, and graph state is checkpointed to Postgres so a session can pause for user input and resume cleanly.
