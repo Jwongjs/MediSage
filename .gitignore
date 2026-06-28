@@ -1,0 +1,119 @@
+.vscode/
+.vs/
+GPU_ACCELERATION_GUIDE.md
+to-do.txt\
+.superpowers
+.pytest_cache
+.claude
+.benchmarks
+.env
+
+# Unnecessary folders
+next-saas-starter-master/
+4_deployment/
+my-app_old/
+
+# Standalone reference project — kept on disk, never tracked (contained a
+# service-account credential + large binaries; not used by the app)
+backend_reference_example/
+
+# AI Models (large files - tracked with Git LFS)
+# Note: Only specific AI model files are tracked with Git LFS
+# Exclude other model files and files too large for GitHub LFS (>2GB)
+backend/ai_models/BioMistral-7B.Q8_0.gguf
+backend/ai_models/JSL-MedLlama-3-8B-v2.0-Q8_0.gguf
+backend/ai_models/Llama-3.1-8B-UltraMedical.Q8_0.gguf
+backend/ai_models/Llama-3.1-8B-UltraMedical.Q4_K_M.gguf
+backend/test/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.npm
+.eslintcache
+
+# React
+/build
+/coverage
+
+# IDE
+.vscode/
+.vs/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+
+# Local IDE settings (kept out of the repo)
+.claude/settings.local.json
+
+# Personal scratch
+to-do.txt
+
+# Frontend verification scratch + Playwright run artifacts (keep specs + config)
+my-app/verify-integration.mjs
+my-app/verify-results.txt
+my-app/verify-screenshots/
+my-app/e2e/playwright-report/
+my-app/e2e/screenshots/
+my-app/e2e/test-results/
+my-app/e2e/results.xml
