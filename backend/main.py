@@ -69,7 +69,12 @@ async def lifespan(app: FastAPI):
     # idle timeout and is never reconnected, so the first checkpoint write after an
     # idle period fails with "the connection is closed". A pool recycles dead
     # connections; check_connection validates liveness before each checkout.
-    connection_kwargs = {"autocommit": True, "prepare_threshold": 0}
+    # prepare_threshold=None DISABLES server-side prepared statements. This is
+    # required for Supabase's transaction-mode pooler (port 6543), which assigns
+    # a different backend connection per statement — a statement prepared on one
+    # connection won't exist on the next ("prepared statement _pg3_1 does not
+    # exist"). (prepare_threshold=0 means "prepare immediately", the opposite.)
+    connection_kwargs = {"autocommit": True, "prepare_threshold": None}
     async with AsyncConnectionPool(
         conninfo=settings.SUPABASE_DB_URL,
         max_size=20,
