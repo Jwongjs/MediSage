@@ -10,6 +10,13 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
+# VITE_* vars are baked in at BUILD time. Docker needs an explicit ARG to receive
+# Railway's service variable, and ENV to expose it to `vite build`. Without this,
+# import.meta.env.VITE_API_URL is undefined -> API_BASE_URL='' -> API calls go to
+# the frontend's own origin (405/HTML) instead of the backend. Empty default keeps
+# local `docker build` working (falls back to the Vite dev proxy).
+ARG VITE_API_URL=""
+ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 # Result: /app/dist contains the built static files (HTML, JS, CSS, assets).
 
