@@ -222,6 +222,31 @@ def logout_user(response: Response):
     )
     return {"message": "Logout successful"}
 
+@router.delete("/patient/delete-account")
+async def delete_account(request: Request, response: Response):
+    """Permanently delete the current user's account and all associated data."""
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    user_id = user["id"]
+
+    try:
+        supabase.table("document_chunks").delete().eq("user_id", user_id).execute()
+        supabase.table("medical_reports").delete().eq("user_id", user_id).execute()
+        supabase.table("user_profiles").delete().eq("id", user_id).execute()
+        supabase.auth.admin.delete_user(user_id)
+    except Exception as e:
+        logger.error(f"Account deletion error for user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete account")
+
+    response.delete_cookie(
+        "access_token",
+        samesite=_COOKIE_SAMESITE,
+        secure=_COOKIE_SECURE,
+    )
+    return {"message": "Account deleted successfully"}
+
 # --- Dependency to get current user from cookie ---
 def get_current_user(request: Request):  #Removed async
     """Get user data directly from JWT cookie instead of calling Supabase"""
