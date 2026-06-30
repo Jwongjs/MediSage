@@ -78,6 +78,24 @@ export class AuthService {
     }
   }
 
+  static async deleteAccount(): Promise<{ message: string }> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/patient/delete-account`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error('Account deletion failed');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Delete account error:', error);
+      throw error;
+    }
+  }
+
   static async getProfile(): Promise<UserProfile> {
     try {
       const response = await fetch(`${API_BASE_URL}/auth/patient/profile`, {

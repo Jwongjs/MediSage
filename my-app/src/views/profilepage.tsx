@@ -71,6 +71,18 @@ const ProfilePage: React.FC = () => {
     navigate('/');
   };
 
+  const handleDeleteAccount = async () => {
+    if (!window.confirm('Delete your account? This permanently removes your profile and all medical reports and cannot be undone.')) return;
+    try {
+      await AuthService.deleteAccount();
+    } catch {
+      setReportsError('Failed to delete account.');
+      return;
+    }
+    await logout();
+    navigate('/');
+  };
+
   const email    = userData.email || (user as any)?.email || '';
   const initials = email.slice(0, 2).toUpperCase() || 'ME';
 
@@ -153,7 +165,7 @@ const ProfilePage: React.FC = () => {
                 <CardDescription>Irreversible account actions.</CardDescription>
               </CardHeader>
               <CardContent>
-                <Button variant="destructive" size="sm" onClick={handleLogout}>Sign out of all sessions</Button>
+                <Button variant="destructive" size="sm" onClick={handleDeleteAccount}>Delete account</Button>
               </CardContent>
             </Card>
           </TabsContent>
