@@ -232,7 +232,7 @@ async def delete_account(request: Request, response: Response):
     user_id = user["id"]
 
     try:
-        supabase.table("document_chunks").delete().eq("user_id", user_id).execute()
+        supabase.table("diagnosis_sessions").delete().eq("user_id", user_id).execute()
         supabase.table("medical_reports").delete().eq("user_id", user_id).execute()
         supabase.table("user_profiles").delete().eq("id", user_id).execute()
         supabase.auth.admin.delete_user(user_id)
