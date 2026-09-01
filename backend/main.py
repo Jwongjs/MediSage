@@ -84,14 +84,9 @@ async def lifespan(app: FastAPI):
     ) as pool:
         checkpointer = AsyncPostgresSaver(pool)
         await checkpointer.setup()
-        from graphs.patient_workflow import compile_patient_workflow
-        app.state.patient_graph = compile_patient_workflow(checkpointer)
-        logger.info("Patient workflow graph compiled with Supabase checkpointer")
-        from graphs.rag_chatbot import compile_rag_chatbot
-        from api.chat_routes import chat_router
-        app.state.rag_graph = compile_rag_chatbot()
-        app.include_router(chat_router)
-        logger.info("RAG chatbot graph compiled")
+        from graphs.diagnosis_workflow import compile_diagnosis_workflow
+        app.state.diagnosis_graph = compile_diagnosis_workflow(checkpointer)
+        logger.info("Diagnosis workflow graph compiled with Supabase checkpointer")
         logger.info("Startup complete!")
         yield
 
