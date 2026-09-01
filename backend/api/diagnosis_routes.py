@@ -192,13 +192,18 @@ async def export_report_file(
     session_id: str = Form(...),
     format: str = Form(...),
     include_details: bool = Form(True),
-    report_data: str = Form(...),
 ):
     try:
-        graph = request.app.state.patient_graph
+        graph = request.app.state.diagnosis_graph
         config = {"configurable": {"thread_id": session_id}}
         snapshot = await graph.aget_state(config)
-        session_state = snapshot.values if snapshot and snapshot.values else json.loads(report_data)
+        # Export only what the server actually computed. The previous
+        # client-supplied fallback let any authenticated caller render
+        # arbitrary JSON into a document carrying MediSage letterhead and
+        # the clinical disclaimer.
+        if not snapshot or not snapshot.values:
+            raise HTTPException(status_code=404, detail="Session not found")
+        session_state = snapshot.values
 
         from nodes.medical_report_node import MedicalReportNode
         report_node = MedicalReportNode()
@@ -220,6 +225,8 @@ async def export_report_file(
             media_type=media_type,
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Export failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))

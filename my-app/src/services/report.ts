@@ -19,7 +19,6 @@ export interface MedicalReport {
   medical_report_content?: string;
   workflow_path?: any;
   workflow_stages_completed?: any;
-  confidence_scores?: any;
   created_at: string;
   updated_at: string;
 }
