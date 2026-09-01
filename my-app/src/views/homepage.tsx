@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import {
-  Activity, Brain, FileText, MessageSquare, ShieldCheck,
+  Activity, Brain, FileText, History, ShieldCheck,
   ChevronRight, Clock, ArrowRight, Stethoscope,
 } from 'lucide-react';
 
@@ -16,13 +16,13 @@ const FEATURES = [
   {
     icon: Brain,
     title: 'AI Differential Diagnosis',
-    description: 'Describe your symptoms and receive a top-5 differential with confidence scores, layman explanations, and severity assessment.',
+    description: 'Describe your symptoms and receive a ranked differential showing which criteria each condition is supported or contradicted by.',
     accent: 'text-primary bg-primary/5',
   },
   {
-    icon: MessageSquare,
-    title: 'Medical History Chat',
-    description: 'Ask questions about your past sessions. The assistant retrieves context from your stored diagnostic reports — no hallucination.',
+    icon: History,
+    title: 'Session History',
+    description: 'Every saved session stays in your history — revisit what was considered, or delete it permanently at any time.',
     accent: 'text-accent bg-accent/5',
   },
   {

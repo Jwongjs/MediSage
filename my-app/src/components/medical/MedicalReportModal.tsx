@@ -47,9 +47,6 @@ export const MedicalReportModal: React.FC<MedicalReportModalProps> = ({ report, 
               <Row label="Session" value={<span className="font-mono text-xs">{report.session_id}</span>} />
               <Row label="Status" value={<Badge variant="outline" className="text-xs">{report.report_status}</Badge>} />
               {analysis?.final_diagnosis && <Row label="Diagnosis" value={analysis.final_diagnosis} />}
-              {analysis?.final_confidence != null && (
-                <Row label="Confidence" value={`${(analysis.final_confidence * 100).toFixed(1)}%`} />
-              )}
               {analysis?.specialist_recommendation && (
                 <Row label="Specialist" value={analysis.specialist_recommendation.replace('_', ' ')} />
               )}

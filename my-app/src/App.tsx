@@ -6,7 +6,7 @@ import LoginPage  from 'views/loginpage';
 import RegisterPage from 'views/registerpage';
 import ProfilePage from 'views/profilepage';
 import ConfirmationPending from 'views/confirmationpage';
-import ChatbotPage from 'views/chatbot';
+import { HistoryPage } from 'pages/history/HistoryPage';
 import PrivacyPolicyPage from 'views/privacypolicy';
 import TermsPage from 'views/terms';
 
@@ -16,7 +16,7 @@ function App(): React.JSX.Element {
       <Route path="/" element={<Homepage />} />
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="/diagnosis" element={<DiagnosisFunction />} />
-      <Route path="/chatbot" element={<ChatbotPage />} />
+      <Route path="/history" element={<HistoryPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/confirmation-pending" element={<ConfirmationPending />} />

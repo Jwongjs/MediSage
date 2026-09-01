@@ -4,11 +4,11 @@ import { useAuth } from 'contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
-import { Menu, Activity, LogOut, User, Stethoscope, MessageSquare } from 'lucide-react';
+import { Menu, Activity, LogOut, User, Stethoscope, History } from 'lucide-react';
 
 const NAV_LINKS = [
   { label: 'Diagnosis', href: '/diagnosis', icon: Stethoscope },
-  { label: 'Chat',      href: '/chatbot',   icon: MessageSquare },
+  { label: 'History',   href: '/history',   icon: History },
 ] as const;
 
 export const Navbar: React.FC = () => {

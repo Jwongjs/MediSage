@@ -1,5 +1,5 @@
 import os
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status, Form
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, Form
 from supabase import create_client, Client
 from pydantic import BaseModel, EmailStr
 import jwt
@@ -439,24 +439,9 @@ async def get_medical_report(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
-async def _ingest_report_background(user_id: str, session_id: str, report_text: str) -> None:
-    try:
-        from rag.retriever import ingest_document
-        await ingest_document(
-            user_id=user_id,
-            source_type="medical_report",
-            source_id=session_id,
-            text=report_text,
-            metadata={"session_id": session_id},
-        )
-        logger.info(f"Background ingestion complete: session={session_id}")
-    except Exception as e:
-        logger.error(f"Background ingestion failed: session={session_id} error={e}")
-
 
 @router.post("/patient/save-medical-report")
 async def save_medical_report(
-    background_tasks: BackgroundTasks,
     session_id: str = Form(...),
     agent_state: str = Form(...),
     report_title: str | None = Form(None),
@@ -478,12 +463,6 @@ async def save_medical_report(
             agent_state_dict,
             report_title
         )
-
-        report_text = agent_state_dict.get("medical_report", "")
-        if report_text:
-            background_tasks.add_task(
-                _ingest_report_background, user["id"], session_id, report_text
-            )
 
         return {
             "message": "Medical report saved successfully",
