@@ -9,8 +9,6 @@ An AI medical-diagnosis assistant. Patients describe symptoms in plain language 
 
 ## Screenshots
 
-> _Drop PNGs into `assets/screenshots/` (filenames below) and they'll render here._
-
 | Home | Diagnosis intake |
 |------|------------------|
 | ![Home page](assets/screenshots/home.png) | ![Diagnosis intake form](assets/screenshots/diagnosis-form.png) |
