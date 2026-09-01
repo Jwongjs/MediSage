@@ -45,3 +45,41 @@ def rank(matrix: dict, judgements: dict) -> list[list[str]]:
         key=lambda pair: (pair[0], pair[1]),
     )
     return [sorted(d for _, d in group) for _, group in groupby(scored, key=lambda pair: pair[0])]
+
+
+_WEIGHT = {"strong": 3, "moderate": 2, "weak": 1}
+
+
+def split_rank(key: str, matrix: dict, candidates: list[str]) -> float:
+    """How much answering this criterion could reorder the differential.
+
+    NOT a confidence value. It orders the question list and is never attached
+    to a diagnosis, returned to the client, or displayed.
+    """
+    present = [d for d in candidates if key in matrix.get(d, {})]
+    if not present:
+        return 0.0
+    split = min(len(present), len(candidates) - len(present))
+    if split == 0:
+        return 0.0
+    weight = sum(_WEIGHT.get(matrix[d][key], 0) for d in present) / len(present)
+    return split * weight
+
+
+def open_questions(canonical, matrix: dict, judgements: dict, candidates: list[str]) -> list[str]:
+    """Criterion keys worth asking about, best first."""
+    scored = []
+    for crit in canonical:
+        if crit.kind != "symptom":
+            continue
+        status = (judgements.get(crit.key) or {}).get("status", "not_mentioned")
+        if status != "not_mentioned":
+            continue
+        rank_value = split_rank(crit.key, matrix, candidates)
+        if rank_value <= 0:
+            continue
+        scored.append((rank_value, crit.key))
+
+    # Descending by value; key name ascending as a deterministic tie-break.
+    scored.sort(key=lambda pair: (-pair[0], pair[1]))
+    return [key for _, key in scored]
