@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any
 from datetime import datetime
 import logging
 
@@ -9,178 +9,15 @@ from reportlab.lib.styles import getSampleStyleSheet
 from docx import Document
 from io import BytesIO
 
-# Database imports
-from supabase import Client
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
 logger = logging.getLogger(__name__)
 
 class MedicalReportNode:
-    def __init__(self, supabase_client: Optional[Client] = None):
-        # Initialize Supabase client for database operations
-        if supabase_client:
-            self.supabase = supabase_client
-        else:
-            # Create client if not provided
-            url = os.getenv("SUPABASE_URL")
-            key = os.getenv("SUPABASE_API_KEY")
-            if url and key:
-                from supabase import create_client
-                self.supabase = create_client(url, key)
-            else:
-                self.supabase = None
-                logger.warning("Supabase credentials not found - database features disabled")
+    """Renders a finished diagnosis state as a downloadable document.
 
-    # ================================
-    # DATABASE STORAGE METHODS
-    # ================================
-
-    async def save_medical_report_to_database(
-        self,
-        user_id: str,
-        session_id: str,
-        agent_state: Dict[str, Any],
-        report_title: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Save a complete medical report to the database"""
-
-        if not self.supabase:
-            raise Exception("Database not configured - Supabase client not available")
-
-        try:
-            # Extract data from agent state
-            report_data = {
-                "user_id": user_id,
-                "session_id": session_id,
-                "report_title": report_title or f"Medical Report - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
-                "patient_symptoms": agent_state.get("userInput_symptoms"),
-                "textual_analysis": agent_state.get("textual_analysis"),
-                "followup_data": {
-                    "questions": agent_state.get("followup_questions"),
-                    "responses": agent_state.get("followup_response"),
-                    "qna_overall": agent_state.get("followup_qna_overall"),
-                    "diagnosis": agent_state.get("followup_diagnosis")
-                } if agent_state.get("followup_questions") else None,
-                "image_analysis": agent_state.get("skin_lesion_analysis"),
-                "overall_analysis": agent_state.get("overall_analysis"),
-                "healthcare_recommendations": agent_state.get("healthcare_recommendation"),
-                "medical_report_content": agent_state.get("medical_report"),
-                "workflow_path": agent_state.get("workflow_path"),
-                "workflow_stages_completed": agent_state.get("current_workflow_stage"),
-            }
-
-            # Remove None values
-            report_data = {k: v for k, v in report_data.items() if v is not None}
-
-            # Insert into database
-            result = self.supabase.table("medical_reports").insert(report_data).execute()
-
-            if result.data:
-                logger.info(f"Medical report saved successfully for user {user_id}, session {session_id}")
-                return result.data[0]
-            else:
-                raise Exception("Failed to save medical report")
-
-        except Exception as e:
-            logger.error(f"Error saving medical report: {e}")
-            raise e
-
-    async def get_user_medical_reports(
-        self,
-        user_id: str,
-        limit: int = 10,
-        offset: int = 0
-    ) -> List[Dict[str, Any]]:
-        """Get all medical reports for a user"""
-
-        if not self.supabase:
-            raise Exception("Database not configured")
-
-        try:
-            result = self.supabase.table("medical_reports")\
-                .select("*")\
-                .eq("user_id", user_id)\
-                .order("created_at", desc=True)\
-                .range(offset, offset + limit - 1)\
-                .execute()
-
-            return result.data or []
-
-        except Exception as e:
-            logger.error(f"Error fetching medical reports: {e}")
-            raise e
-
-    async def get_medical_report_by_id(
-        self,
-        report_id: str,
-        user_id: str
-    ) -> Optional[Dict[str, Any]]:
-        """Get a specific medical report by ID"""
-
-        if not self.supabase:
-            raise Exception("Database not configured")
-
-        try:
-            result = self.supabase.table("medical_reports")\
-                .select("*")\
-                .eq("id", report_id)\
-                .eq("user_id", user_id)\
-                .execute()
-
-            return result.data[0] if result.data else None
-
-        except Exception as e:
-            logger.error(f"Error fetching medical report: {e}")
-            raise e
-
-    async def delete_medical_report(
-        self,
-        report_id: str,
-        user_id: str
-    ) -> bool:
-        """Delete a medical report"""
-
-        if not self.supabase:
-            raise Exception("Database not configured")
-
-        try:
-            result = self.supabase.table("medical_reports")\
-                .delete()\
-                .eq("id", report_id)\
-                .eq("user_id", user_id)\
-                .execute()
-
-            return bool(result.data)
-
-        except Exception as e:
-            logger.error(f"Error deleting medical report: {e}")
-            raise e
-
-    async def update_report_title(
-        self,
-        report_id: str,
-        user_id: str,
-        new_title: str
-    ) -> Dict[str, Any]:
-        """Update medical report title"""
-
-        if not self.supabase:
-            raise Exception("Database not configured")
-
-        try:
-            result = self.supabase.table("medical_reports")\
-                .update({"report_title": new_title})\
-                .eq("id", report_id)\
-                .eq("user_id", user_id)\
-                .execute()
-
-            return result.data[0] if result.data else None
-
-        except Exception as e:
-            logger.error(f"Error updating medical report title: {e}")
-            raise e
+    MediSage stores nothing, so this node has no database dependency and no
+    persistence methods: it only turns in-memory graph state into bytes that
+    the API streams straight back to the caller.
+    """
 
 #==================================================
 # Medical Report Export Function

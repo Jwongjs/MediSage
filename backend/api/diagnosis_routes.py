@@ -1,5 +1,4 @@
-from fastapi import APIRouter, Body, Depends, Form, HTTPException, Request, Response
-from typing import Optional
+from fastapi import APIRouter, Body, Form, HTTPException, Request, Response
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
 import uuid
@@ -8,9 +7,6 @@ import logging
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-
-from api.auth_routes import require_privacy_policy, get_current_user
-from persistence.sessions import save_session, list_sessions, get_session, delete_session
 
 diagnosis_router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -58,14 +54,18 @@ def _step(state: dict, action: str) -> dict:
     }
 
 
-@diagnosis_router.post("/diagnosis/start", dependencies=[Depends(require_privacy_policy)])
+@diagnosis_router.post("/diagnosis/start")
 @limiter.limit("20/minute")
 async def start_diagnosis(
     request: Request,
     patient_text: str = Form(...),
-    session_id: Optional[str] = Form(None),
 ):
-    session_id = session_id or f"session_{uuid.uuid4().hex[:8]}"
+    # With no accounts, the session id IS the bearer credential for this
+    # session: anyone holding it can read the differential and download the
+    # export. So it is server-generated at full uuid4 entropy and never
+    # client-supplied -- a caller-chosen id could collide with, and write
+    # into, someone else's live thread.
+    session_id = f"session_{uuid.uuid4().hex}"
     config = {"configurable": {"thread_id": session_id}}
 
     try:
@@ -82,7 +82,7 @@ async def start_diagnosis(
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@diagnosis_router.post("/diagnosis/{session_id}/answers", dependencies=[Depends(require_privacy_policy)])
+@diagnosis_router.post("/diagnosis/{session_id}/answers")
 @limiter.limit("30/minute")
 async def submit_answers(request: Request, session_id: str, answers: dict = Body(...)):
     """answers: {criterion_key: "yes" | "no" | "unsure"}"""
@@ -124,7 +124,7 @@ async def submit_answers(request: Request, session_id: str, answers: dict = Body
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@diagnosis_router.post("/diagnosis/{session_id}/finalize", dependencies=[Depends(require_privacy_policy)])
+@diagnosis_router.post("/diagnosis/{session_id}/finalize")
 @limiter.limit("20/minute")
 async def finalize_diagnosis(request: Request, session_id: str):
     config = {"configurable": {"thread_id": session_id}}
@@ -137,12 +137,9 @@ async def finalize_diagnosis(request: Request, session_id: str):
 
         result = await graph.ainvoke(None, config)
         result["steps"] = list(result.get("steps") or []) + [_step(result, "finalize")]
-        # Write the step back before persisting: otherwise the checkpoint and the
-        # saved row disagree, and a save_session failure loses the entry entirely.
+        # The step is written back to the checkpoint only. Nothing is persisted
+        # beyond the process: the client keeps the result, or exports it.
         await graph.aupdate_state(config, {"steps": result["steps"]})
-        user = get_current_user(request)
-        if user:
-            await save_session(user["id"], result)
         return {"success": True, "session_id": session_id, "result": _view(result)}
     except HTTPException:
         raise
@@ -151,42 +148,8 @@ async def finalize_diagnosis(request: Request, session_id: str):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@diagnosis_router.get("/diagnosis/history", dependencies=[Depends(require_privacy_policy)])
-async def history_list(request: Request, limit: int = 20, offset: int = 0):
-    user = get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    return {"sessions": await list_sessions(user["id"], limit, offset)}
-
-
-@diagnosis_router.get("/diagnosis/history/{row_id}", dependencies=[Depends(require_privacy_policy)])
-async def history_detail(request: Request, row_id: str):
-    user = get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    # 404 for a malformed id too, not 400: a client must not be able to tell
-    # "no such row" from "not yours" from "not a uuid".
-    try:
-        row = await get_session(row_id, user["id"])
-    except Exception as exc:
-        logger.error("History lookup failed for %s: %s", row_id, exc)
-        raise HTTPException(status_code=404, detail="Session not found")
-    if not row:
-        raise HTTPException(status_code=404, detail="Session not found")
-    return row
-
-
-@diagnosis_router.delete("/diagnosis/history/{row_id}", dependencies=[Depends(require_privacy_policy)])
-async def history_delete(request: Request, row_id: str):
-    user = get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    if not await delete_session(row_id, user["id"]):
-        raise HTTPException(status_code=404, detail="Session not found")
-    return {"deleted": row_id}
-
-
-@diagnosis_router.post("/patient/export_report", dependencies=[Depends(require_privacy_policy)])
+@diagnosis_router.post("/patient/export_report")
+@limiter.limit("20/minute")
 async def export_report_file(
     request: Request,
     session_id: str = Form(...),
@@ -198,9 +161,8 @@ async def export_report_file(
         config = {"configurable": {"thread_id": session_id}}
         snapshot = await graph.aget_state(config)
         # Export only what the server actually computed. The previous
-        # client-supplied fallback let any authenticated caller render
-        # arbitrary JSON into a document carrying MediSage letterhead and
-        # the clinical disclaimer.
+        # client-supplied fallback let any caller render arbitrary JSON into
+        # a document carrying MediSage letterhead and the clinical disclaimer.
         if not snapshot or not snapshot.values:
             raise HTTPException(status_code=404, detail="Session not found")
         session_state = snapshot.values
@@ -236,8 +198,7 @@ async def export_report_file(
 async def debug_routes():
     return {"message": "Routes working", "endpoints": [
         "/diagnosis/start", "/diagnosis/{session_id}/answers",
-        "/diagnosis/{session_id}/finalize", "/diagnosis/history",
-        "/diagnosis/history/{row_id}",
+        "/diagnosis/{session_id}/finalize",
         "/patient/export_report", "/health",
     ]}
 
@@ -252,14 +213,6 @@ async def health_check():
         "timestamp": datetime.now().isoformat(),
         "checks": {},
     }
-
-    try:
-        from api.auth_routes import supabase
-        supabase.table("user_profiles").select("id").limit(1).execute()
-        health["checks"]["database"] = "ok"
-    except Exception as e:
-        health["checks"]["database"] = f"error: {e}"
-        health["status"] = "degraded"
 
     try:
         from llm.client import llm_client

@@ -20,8 +20,11 @@ COPY . .
 
 EXPOSE 8000
 
-# workers=2 handles 2 concurrent requests per container instance.
-# Railway scales by adding more container instances, not more workers per instance.
+# workers=1 is REQUIRED, not a tuning choice. Session state lives in an
+# in-process MemorySaver (no database, by design), so a second worker would
+# not see sessions started by the first and roughly half of all
+# answers/finalize/export calls would 404. Scale by adding container
+# instances only if the load balancer has session affinity.
 # Shell form (not exec/JSON) so $PORT expands. Railway injects $PORT at runtime;
 # falls back to 8000 for local `docker run`.
-CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1

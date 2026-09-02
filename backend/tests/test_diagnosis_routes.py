@@ -72,15 +72,12 @@ def test_unsure_maps_to_not_mentioned():
 # A minimal two-node graph with the real shape: an interrupt before `summary`,
 # so `start` leaves the checkpoint mid-run and `finalize` resumes into it.
 
-from unittest.mock import AsyncMock
-
 import httpx
 from fastapi import FastAPI
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 
 import api.diagnosis_routes as routes
-from api.auth_routes import require_privacy_policy
 from schemas.diagnosis_schemas import DiagnosisState
 
 
@@ -97,7 +94,7 @@ async def _summary(state):
     return state
 
 
-def _stub_app(monkeypatch):
+def _stub_app():
     workflow = StateGraph(DiagnosisState)
     workflow.set_entry_point("prepare")
     workflow.add_node("prepare", _prepare)
@@ -106,14 +103,10 @@ def _stub_app(monkeypatch):
     workflow.add_edge("summary", END)
     graph = workflow.compile(checkpointer=MemorySaver(), interrupt_before=["summary"])
 
-    monkeypatch.setattr(routes, "get_current_user", lambda request: {"id": "user-1"})
-    monkeypatch.setattr(routes, "save_session", AsyncMock(return_value={}))
-
     app = FastAPI()
     app.state.limiter = routes.limiter
     app.state.diagnosis_graph = graph
     app.include_router(routes.diagnosis_router)
-    app.dependency_overrides[require_privacy_policy] = lambda: None
     return app, graph
 
 
@@ -121,8 +114,8 @@ def _client(app):
     return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
 
 
-async def test_finalize_returns_404_for_a_session_that_was_never_started(monkeypatch):
-    app, _ = _stub_app(monkeypatch)
+async def test_finalize_returns_404_for_a_session_that_was_never_started():
+    app, _ = _stub_app()
     async with _client(app) as client:
         response = await client.post("/diagnosis/never-started/finalize")
 
@@ -130,18 +123,35 @@ async def test_finalize_returns_404_for_a_session_that_was_never_started(monkeyp
     assert response.json()["detail"] == "Session not found"
 
 
-async def test_finalize_writes_the_finalize_step_back_to_the_checkpoint(monkeypatch):
-    app, graph = _stub_app(monkeypatch)
-    config = {"configurable": {"thread_id": "s1"}}
+async def test_finalize_writes_the_finalize_step_back_to_the_checkpoint():
+    app, graph = _stub_app()
 
     async with _client(app) as client:
         started = await client.post(
-            "/diagnosis/start", data={"patient_text": "belly pain", "session_id": "s1"}
+            "/diagnosis/start", data={"patient_text": "belly pain"}
         )
         assert started.status_code == 200
-        finalized = await client.post("/diagnosis/s1/finalize")
+        # The server owns the session id; a client cannot choose its own thread.
+        session_id = started.json()["session_id"]
+        finalized = await client.post(f"/diagnosis/{session_id}/finalize")
         assert finalized.status_code == 200
+
+    config = {"configurable": {"thread_id": session_id}}
 
     steps = (await graph.aget_state(config)).values["steps"]
     assert [s["action"] for s in steps] == ["start", "finalize"]
     assert steps[-1]["stage"] == "complete"
+
+
+async def test_start_ignores_a_client_supplied_session_id():
+    # With no accounts the session id is the only credential for a session, so
+    # a caller must not be able to choose it and collide with a live thread.
+    app, _ = _stub_app()
+    async with _client(app) as client:
+        r = await client.post(
+            "/diagnosis/start", data={"patient_text": "belly pain", "session_id": "attacker-chosen"}
+        )
+    assert r.status_code == 200
+    issued = r.json()["session_id"]
+    assert issued != "attacker-chosen"
+    assert len(issued) == len("session_") + 32

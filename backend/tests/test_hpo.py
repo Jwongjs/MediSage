@@ -70,3 +70,24 @@ def test_terms_yields_id_label_pairs_for_embedding():
     idx = parse_obo(SAMPLE)
     ids = {hp_id for hp_id, _ in idx.terms()}
     assert ids == {"HP:0002027", "HP:0001945", "HP:0100749"}
+
+
+def test_lookup_strips_prose_wrappers_that_hpo_does_not_use():
+    # Node B writes clinical prose; HPO names bare concepts. Measured on real
+    # Node B output this lifts exact-match resolution from 9% to 35%.
+    idx = parse_obo(SAMPLE)
+    assert idx.lookup("Presence of fever") == "HP:0001945"
+    assert idx.lookup("Fever (typically low-grade)") == "HP:0001945"
+    assert idx.lookup("Abdominal pain, often localized to the right lower quadrant") == "HP:0002027"
+
+
+def test_lookup_does_not_split_compound_criteria():
+    # "Nausea and/or vomiting" is not the same criterion as "Nausea".
+    # Mapping a compound onto one part silently drops the other concept.
+    idx = parse_obo(SAMPLE)
+    assert idx.lookup("Fever and chills") is None
+
+
+def test_strip_prose_leaves_a_plain_term_untouched():
+    from diagnosis.hpo import strip_prose
+    assert strip_prose("Abdominal pain") == "Abdominal pain"
