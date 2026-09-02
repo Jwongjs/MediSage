@@ -16,15 +16,15 @@ const TermsPage: React.FC = () => (
     <div className="container mx-auto max-w-3xl px-4 py-12 space-y-8">
       <header className="space-y-2">
         <h1 className="font-display text-4xl font-normal">Terms of Service</h1>
-        <p className="text-sm text-muted-foreground">Last updated: 12 June 2026</p>
+        <p className="text-sm text-muted-foreground">Last updated: 2 September 2026</p>
       </header>
 
       <Separator />
 
       <Section title="1. Acceptance of these terms">
         <p>
-          These Terms of Service ("Terms") govern your use of MediSage (the "Service"). By creating
-          an account or using the Service, you confirm that you have read, understood, and agree to
+          These Terms of Service ("Terms") govern your use of MediSage (the "Service"). By using
+          the Service, you confirm that you have read, understood, and agree to
           be bound by these Terms and by our{' '}
           <Link to="/privacy" className="text-primary underline underline-offset-2">Privacy Policy</Link>.
           If you do not agree, do not use the Service.
@@ -57,8 +57,8 @@ const TermsPage: React.FC = () => (
       <Section title="4. Eligibility">
         <p>
           You must be at least 18 years old, or use the Service under the supervision of a parent or
-          legal guardian who accepts these Terms on your behalf. You are responsible for providing
-          accurate account information.
+          legal guardian who accepts these Terms on your behalf. The Service has no registration, so
+          there is nothing to sign up for and no account to keep accurate.
         </p>
       </Section>
 
@@ -86,12 +86,18 @@ const TermsPage: React.FC = () => (
         </p>
       </Section>
 
-      <Section title="7. Your data and saved reports">
+      <Section title="7. Your data and your report">
         <p>
-          Our handling of your personal and health data is described in the{' '}
+          The Service has no accounts and keeps no records. Your symptom text and answers are held
+          in memory only for as long as an assessment is open, and are lost when the server
+          restarts. Nothing is written to a database, and there is no history to return to.
+        </p>
+        <p>
+          The report you download at the end is the only copy, and it is stored on your device
+          rather than by us — keeping it safe, and deleting it, are your responsibility. To
+          generate that output your symptom text is sent to a third-party AI provider, whose own
+          policies govern what they do with it. This is set out in full in the{' '}
           <Link to="/privacy" className="text-primary underline underline-offset-2">Privacy Policy</Link>.
-          Diagnostic reports are stored only when you explicitly choose to save them, and you may
-          delete them from your profile at any time.
         </p>
       </Section>
 

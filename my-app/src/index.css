@@ -60,4 +60,13 @@
   .severity-moderate { @apply bg-amber-50   text-amber-800; }
   .severity-severe   { @apply bg-red-50     text-red-800; }
   .severity-critical { @apply bg-rose-50    text-rose-800; }
+
+  /* Evidence status. Deliberately outside the severity palette — severity
+     already owns emerald/amber/red, and reusing it would read as one scale
+     when these are unrelated dimensions. */
+  .evidence-supported     { @apply bg-teal-50   text-teal-900   border-teal-200; }
+  .evidence-contradicted  { @apply bg-orange-50 text-orange-900 border-orange-200; }
+  .evidence-unaddressed   { @apply bg-slate-50  text-slate-600  border-slate-200; }
+
+  .severity-unknown { @apply bg-slate-100 text-slate-700; }
 }

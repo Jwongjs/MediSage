@@ -1,150 +1,171 @@
-from fastapi import APIRouter, Form, HTTPException, Depends, Request, Response
-from typing import Optional
-import uuid
+from fastapi import APIRouter, Body, Form, HTTPException, Request, Response
+from dataclasses import asdict, is_dataclass
 from datetime import datetime
-import logging
+import uuid
 import json
+import logging
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from schemas.medical_schemas import AgentState
-from api.auth_routes import require_privacy_policy
-
 diagnosis_router = APIRouter()
 logger = logging.getLogger(__name__)
-
-# In-memory per-process limiter. The Redis ping in main.py confirms Redis
-# readiness for the post-SP5 shared store; rate counters here are per worker.
 limiter = Limiter(key_func=get_remote_address)
 
+ANSWER_TO_STATUS = {
+    "yes": "supported",
+    "no": "contradicted",
+    "unsure": "not_mentioned",
+}
 
-async def _get_workflow_info(graph, config: dict, state: dict) -> dict:
-    snapshot = await graph.aget_state(config)
-    next_nodes = list(snapshot.next) if snapshot and snapshot.next else []
 
-    if not next_nodes:
-        return {
-            "workflow_complete": True,
-            "next_endpoint": None,
-            "needs_user_input": None,
-            "next_step_description": "Medical analysis workflow complete",
-            "show_next_button": False,
-            "medical_report_available": bool(state.get("medical_report")),
-        }
+def _view(state: dict) -> dict:
+    """The client-facing projection of graph state.
 
-    node_map = {
-        "generate_followup_questions": ("/patient/followup_questions", "followup_questions", "Follow-up questions needed"),
-        "process_followup_responses": ("/patient/followup_questions", "followup_questions", "Answer follow-up questions"),
-        "overall_analysis": ("/patient/overall_analysis", None, "Ready for comprehensive analysis"),
-        "medical_report": ("/patient/medical_report", None, "Generating medical report"),
-    }
-    endpoint, user_input, description = node_map.get(next_nodes[0], (None, None, "Unknown next step"))
-
+    Deliberately narrow: `profiles` and any ordering weights stay server-side.
+    No numeric score of any kind crosses this boundary.
+    """
+    canonical = [asdict(c) if is_dataclass(c) else dict(c) for c in state.get("canonical", [])]
     return {
-        "workflow_complete": False,
-        "next_endpoint": endpoint,
-        "needs_user_input": user_input,
-        "next_step_description": description,
-        "show_next_button": True,
-        "confidence_score": state.get("average_confidence", 0.0),
+        "stage": state.get("stage"),
+        "patient_text": state.get("patient_text", ""),
+        "ranking": [
+            {"rank": i + 1, "diagnoses": group}
+            for i, group in enumerate(state.get("ranking") or [])
+        ],
+        "not_evaluated": state.get("not_evaluated", []),
+        "canonical": canonical,
+        "matrix": state.get("matrix", {}),
+        "judgements": state.get("judgements", {}),
+        "open_questions": state.get("open_questions", []),
+        "grounded": state.get("grounded", {}),
+        "summary": state.get("summary"),
     }
 
 
-@diagnosis_router.post("/patient/textual_analysis", dependencies=[Depends(require_privacy_policy)])
+def _step(state: dict, action: str) -> dict:
+    """One replayable entry per interaction. No scores, no profiles."""
+    return {
+        "action": action,
+        "stage": state.get("stage"),
+        "ranking": [list(group) for group in (state.get("ranking") or [])],
+        "not_evaluated": list(state.get("not_evaluated") or []),
+        "open_questions": list(state.get("open_questions") or []),
+    }
+
+
+@diagnosis_router.post("/diagnosis/start")
 @limiter.limit("20/minute")
-async def run_textual_analysis(
+async def start_diagnosis(
     request: Request,
-    user_symptoms: str = Form(..., description="Patient symptoms"),
-    session_id: Optional[str] = Form(None),
+    patient_text: str = Form(...),
 ):
-    session_id = session_id or f"session_{uuid.uuid4().hex[:8]}"
+    # With no accounts, the session id IS the bearer credential for this
+    # session: anyone holding it can read the differential and download the
+    # export. So it is server-generated at full uuid4 entropy and never
+    # client-supplied -- a caller-chosen id could collide with, and write
+    # into, someone else's live thread.
+    session_id = f"session_{uuid.uuid4().hex}"
     config = {"configurable": {"thread_id": session_id}}
-    graph = request.app.state.patient_graph
 
     try:
-        initial_state: AgentState = {
-            "session_id": session_id,
-            "latest_user_message": user_symptoms,
-            "userInput_symptoms": user_symptoms,
-            "current_workflow_stage": "initializing",
-        }
-        result = await graph.ainvoke(initial_state, config)
-        workflow_info = await _get_workflow_info(graph, config, result)
-        return {"success": True, "session_id": session_id, "result": result, "workflow_info": workflow_info}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        graph = request.app.state.diagnosis_graph
+        result = await graph.ainvoke(
+            {"session_id": session_id, "patient_text": patient_text, "stage": "started"},
+            config,
+        )
+        steps = [_step(result, "start")]
+        await graph.aupdate_state(config, {"steps": steps})
+        return {"success": True, "session_id": session_id, "result": _view(result)}
+    except Exception as exc:
+        logger.error("Diagnosis start failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
-@diagnosis_router.post("/patient/followup_questions", dependencies=[Depends(require_privacy_policy)])
+@diagnosis_router.post("/diagnosis/{session_id}/answers")
+@limiter.limit("30/minute")
+async def submit_answers(request: Request, session_id: str, answers: dict = Body(...)):
+    """answers: {criterion_key: "yes" | "no" | "unsure"}"""
+    config = {"configurable": {"thread_id": session_id}}
+
+    try:
+        graph = request.app.state.diagnosis_graph
+        snapshot = await graph.aget_state(config)
+        if not snapshot or not snapshot.values:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        judgements = dict(snapshot.values.get("judgements") or {})
+        for key, answer in answers.items():
+            status = ANSWER_TO_STATUS.get(answer)
+            if status is None:
+                continue
+            judgements[key] = {
+                "status": status,
+                "evidence": "Reported by patient" if status != "not_mentioned" else None,
+                "source": "patient_answer",
+            }
+
+        await graph.aupdate_state(config, {"judgements": judgements, "answers": answers})
+
+        from graphs.diagnosis_workflow import MergeRankNode
+        refreshed = await MergeRankNode()(dict(snapshot.values) | {"judgements": judgements})
+        steps = list(snapshot.values.get("steps") or []) + [_step(refreshed, "answers")]
+        await graph.aupdate_state(config, {
+            "ranking": refreshed["ranking"],
+            "open_questions": refreshed["open_questions"],
+            "steps": steps,
+        })
+
+        return {"success": True, "session_id": session_id, "result": _view(refreshed)}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Answer submission failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@diagnosis_router.post("/diagnosis/{session_id}/finalize")
 @limiter.limit("20/minute")
-async def run_followup_questions(
-    request: Request,
-    session_id: str = Form(...),
-    followup_responses: Optional[str] = Form(None),
-):
+async def finalize_diagnosis(request: Request, session_id: str):
     config = {"configurable": {"thread_id": session_id}}
-    graph = request.app.state.patient_graph
 
     try:
-        if followup_responses:
-            responses = json.loads(followup_responses)
-            await graph.aupdate_state(config, {
-                "followup_response": responses,
-                "requires_user_input": False,
-            })
+        graph = request.app.state.diagnosis_graph
+        snapshot = await graph.aget_state(config)
+        if not snapshot or not snapshot.values:
+            raise HTTPException(status_code=404, detail="Session not found")
+
         result = await graph.ainvoke(None, config)
-        workflow_info = await _get_workflow_info(graph, config, result)
-        return {"success": True, "session_id": session_id, "result": result, "workflow_info": workflow_info}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        result["steps"] = list(result.get("steps") or []) + [_step(result, "finalize")]
+        # The step is written back to the checkpoint only. Nothing is persisted
+        # beyond the process: the client keeps the result, or exports it.
+        await graph.aupdate_state(config, {"steps": result["steps"]})
+        return {"success": True, "session_id": session_id, "result": _view(result)}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Finalize failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
-@diagnosis_router.post("/patient/overall_analysis", dependencies=[Depends(require_privacy_policy)])
+@diagnosis_router.post("/patient/export_report")
 @limiter.limit("20/minute")
-async def run_overall_analysis(request: Request, session_id: str = Form(...)):
-    config = {"configurable": {"thread_id": session_id}}
-    graph = request.app.state.patient_graph
-
-    try:
-        result = await graph.ainvoke(None, config)
-        workflow_info = await _get_workflow_info(graph, config, result)
-        return {"success": True, "session_id": session_id, "result": result, "workflow_info": workflow_info}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@diagnosis_router.post("/patient/medical_report", dependencies=[Depends(require_privacy_policy)])
-@limiter.limit("20/minute")
-async def run_medical_report(
-    request: Request,
-    session_id: str = Form(...),
-):
-    config = {"configurable": {"thread_id": session_id}}
-    graph = request.app.state.patient_graph
-
-    try:
-        result = await graph.ainvoke(None, config)
-        workflow_info = await _get_workflow_info(graph, config, result)
-        return {"success": True, "session_id": session_id, "result": result, "workflow_info": workflow_info}
-    except Exception as e:
-        logger.error(f"Medical report generation failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@diagnosis_router.post("/patient/export_report", dependencies=[Depends(require_privacy_policy)])
 async def export_report_file(
     request: Request,
     session_id: str = Form(...),
     format: str = Form(...),
     include_details: bool = Form(True),
-    report_data: str = Form(...),
 ):
     try:
-        graph = request.app.state.patient_graph
+        graph = request.app.state.diagnosis_graph
         config = {"configurable": {"thread_id": session_id}}
         snapshot = await graph.aget_state(config)
-        session_state = snapshot.values if snapshot and snapshot.values else json.loads(report_data)
+        # Export only what the server actually computed. The previous
+        # client-supplied fallback let any caller render arbitrary JSON into
+        # a document carrying MediSage letterhead and the clinical disclaimer.
+        if not snapshot or not snapshot.values:
+            raise HTTPException(status_code=404, detail="Session not found")
+        session_state = snapshot.values
 
         from nodes.medical_report_node import MedicalReportNode
         report_node = MedicalReportNode()
@@ -166,6 +187,8 @@ async def export_report_file(
             media_type=media_type,
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Export failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -174,8 +197,8 @@ async def export_report_file(
 @diagnosis_router.get("/debug/routes")
 async def debug_routes():
     return {"message": "Routes working", "endpoints": [
-        "/patient/textual_analysis", "/patient/followup_questions",
-        "/patient/overall_analysis", "/patient/medical_report",
+        "/diagnosis/start", "/diagnosis/{session_id}/answers",
+        "/diagnosis/{session_id}/finalize",
         "/patient/export_report", "/health",
     ]}
 
@@ -190,14 +213,6 @@ async def health_check():
         "timestamp": datetime.now().isoformat(),
         "checks": {},
     }
-
-    try:
-        from api.auth_routes import supabase
-        supabase.table("user_profiles").select("id").limit(1).execute()
-        health["checks"]["database"] = "ok"
-    except Exception as e:
-        health["checks"]["database"] = f"error: {e}"
-        health["status"] = "degraded"
 
     try:
         from llm.client import llm_client

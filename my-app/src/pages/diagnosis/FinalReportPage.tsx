@@ -1,81 +1,90 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { AgentState } from 'types/medical';
 import { DiagnosisProgress } from 'components/medical/DiagnosisProgress';
-import { useAuth } from 'contexts/AuthContext';
-import { MedicalReportService } from 'services/report';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Loader2, FileText, RotateCcw, AlertTriangle, Save, CheckCircle2 } from 'lucide-react';
+import {
+  Loader2, RotateCcw, AlertTriangle, ExternalLink,
+  Download, FileText, FileType, AlertCircle,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { DiagnosisService } from 'services/diagnosis';
+import { DiagnosisView, ExportFormat } from 'types/diagnosis';
 
 interface FinalReportPageProps {
-  workflowState: AgentState | null;
+  view: DiagnosisView;
   loading: boolean;
+  sessionId: string | null;
   onReset: () => void;
 }
 
+// An unmatched severity falls back to `severity-unknown`, never `severity-mild`:
+// the backend emits "unknown" deliberately when severity is unparseable, and
+// styling that as mild would fail toward reassurance.
 const SEVERITY_CLASS: Record<string, string> = {
-  mild:      'severity-mild',
-  moderate:  'severity-moderate',
-  severe:    'severity-severe',
-  critical:  'severity-critical',
-  emergency: 'severity-critical',
+  mild:     'severity-mild',
+  moderate: 'severity-moderate',
+  severe:   'severity-severe',
+  critical: 'severity-critical',
+  unknown:  'severity-unknown',
 };
 
 export const FinalReportPage: React.FC<FinalReportPageProps> = ({
-  workflowState, loading, onReset,
+  view, loading, sessionId, onReset,
 }) => {
-  const { loggedIn } = useAuth();
-  const [reportOpen, setReportOpen] = useState(false);
-  const [saveOpen, setSaveOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  // Which format is in flight, so only that button spins while both disable.
+  const [exporting, setExporting] = useState<ExportFormat | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
-  if (loading || !workflowState?.overall_analysis) {
+  // Resetting drops the session id, which is the only handle on the report.
+  // Nothing is stored, so an accidental click is unrecoverable.
+  const handleReset = () => {
+    const confirmed = window.confirm(
+      'Start a new diagnosis? This report is not saved anywhere — if you have not downloaded it, it will be gone.'
+    );
+    if (confirmed) onReset();
+  };
+
+  const handleExport = async (format: ExportFormat) => {
+    if (!sessionId) return;
+    setExporting(format);
+    setExportError(null);
+    try {
+      await DiagnosisService.exportReport(sessionId, format);
+    } catch (error) {
+      setExportError(
+        error instanceof Error ? error.message : 'Could not build the file. Please try again.'
+      );
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  if (loading || !view.summary) {
     return (
       <div className="space-y-6">
-        <DiagnosisProgress current="report" />
+        <DiagnosisProgress current="summary" />
         <Card className="shadow-sm text-center">
           <CardContent className="py-12 space-y-3">
             <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
-            <p className="text-sm text-muted-foreground">Generating your medical report…</p>
+            <p className="text-sm text-muted-foreground">Preparing your summary…</p>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  const analysis   = workflowState.overall_analysis;
-  const severity   = (analysis.final_severity ?? 'mild').toLowerCase();
-  const isCritical = severity === 'critical' || severity === 'emergency';
-  const alts = (workflowState.followup_diagnosis?.length ?? 0) > 1
-    ? workflowState.followup_diagnosis!.slice(1, 4)
-    : (workflowState.textual_analysis ?? []).slice(1, 4);
-
-  const handleSave = async () => {
-    setSaving(true);
-    setSaveError(null);
-    try {
-      await MedicalReportService.saveMedicalReport(workflowState.session_id, workflowState);
-      setSaved(true);
-      setSaveOpen(false);
-    } catch (e) {
-      setSaveError(e instanceof Error ? e.message : 'Failed to save report');
-    } finally {
-      setSaving(false);
-    }
-  };
+  const summary    = view.summary;
+  const severity   = (summary.severity ?? 'unknown').toLowerCase();
+  const isCritical = severity === 'critical';
+  const primary    = view.ranking[0]?.diagnoses[0];
+  const alts       = view.ranking.flatMap(g => g.diagnoses).slice(1, 4);
 
   return (
     <div className="space-y-6 animate-fade-in-up">
-      <DiagnosisProgress current="report" />
+      <DiagnosisProgress current="summary" />
 
       {isCritical && (
         <Alert variant="destructive">
@@ -91,33 +100,37 @@ export const FinalReportPage: React.FC<FinalReportPageProps> = ({
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
-              <CardDescription className="text-xs mb-1">Primary diagnosis</CardDescription>
-              <CardTitle className="text-xl">{analysis.final_diagnosis}</CardTitle>
+              <CardDescription className="text-xs mb-1">Best-supported condition</CardDescription>
+              <CardTitle className="text-xl">{primary ?? 'No condition could be assessed'}</CardTitle>
             </div>
-            <Badge className={cn('text-xs', SEVERITY_CLASS[severity] ?? SEVERITY_CLASS.mild)}>
+            <Badge className={cn('text-xs', SEVERITY_CLASS[severity] ?? SEVERITY_CLASS.unknown)}>
               {severity.charAt(0).toUpperCase() + severity.slice(1)}
             </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {analysis.user_explanation && (
+          {summary.user_explanation && (
             <div className="bg-secondary/60 rounded-lg p-4">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">What this means</p>
-              <p className="text-sm leading-relaxed">{analysis.user_explanation}</p>
+              <p className="text-sm leading-relaxed">{summary.user_explanation}</p>
+              {summary.explanation_source && (
+                <p className="text-xs text-muted-foreground mt-2.5">
+                  Source: {summary.explanation_url ? (
+                    <a href={summary.explanation_url} target="_blank" rel="noreferrer"
+                      className="text-primary underline underline-offset-2 inline-flex items-center gap-1">
+                      {summary.explanation_source}<ExternalLink className="h-3 w-3" />
+                    </a>
+                  ) : summary.explanation_source}
+                </p>
+              )}
             </div>
           )}
-          {analysis.clinical_reasoning && (
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Clinical reasoning</p>
-              <p className="text-sm text-muted-foreground leading-relaxed">{analysis.clinical_reasoning}</p>
-            </div>
-          )}
-          {analysis.specialist_recommendation && (
+          {summary.specialist_recommendation && (
             <>
               <Separator />
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Recommended specialist</p>
-                <Badge variant="outline" className="text-xs">{analysis.specialist_recommendation}</Badge>
+                <Badge variant="outline" className="text-xs">{summary.specialist_recommendation}</Badge>
               </div>
             </>
           )}
@@ -127,91 +140,67 @@ export const FinalReportPage: React.FC<FinalReportPageProps> = ({
       {alts.length > 0 && (
         <Card className="shadow-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Alternative diagnoses considered</CardTitle>
+            <CardTitle className="text-base">Alternative conditions considered</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {alts.map((d, i) => {
-              const pct = Math.round(d.diagnosis_confidence * 100);
-              return (
-                <div key={i} className="space-y-1">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{d.text_diagnosis}</span>
-                    <span className="text-muted-foreground text-xs">{pct}%</span>
-                  </div>
-                  <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                    <div className="h-full bg-primary/50 rounded-full" style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-              );
-            })}
+          <CardContent className="space-y-2">
+            {alts.map(name => (
+              <div key={name} className="text-sm font-medium py-2 border-b last:border-0">{name}</div>
+            ))}
           </CardContent>
         </Card>
       )}
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        {loggedIn && (saved ? (
-          <Button variant="outline" className="gap-2 flex-1 text-primary border-primary/40" disabled>
-            <CheckCircle2 className="h-4 w-4" />Saved to profile
-          </Button>
-        ) : (
-          <Button className="gap-2 flex-1" onClick={() => setSaveOpen(true)}>
-            <Save className="h-4 w-4" />Save to my account
-          </Button>
-        ))}
-        {workflowState.medical_report && (
-          <Button variant="outline" className="gap-2 flex-1" onClick={() => setReportOpen(r => !r)}>
-            <FileText className="h-4 w-4" />{reportOpen ? 'Hide' : 'View'} full report
-          </Button>
-        )}
-        <Button variant="outline" onClick={onReset} className="gap-2 flex-1">
-          <RotateCcw className="h-4 w-4" />New diagnosis
-        </Button>
-      </div>
+      <Card className="shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Download className="h-5 w-5 text-primary" />
+            <CardTitle className="text-base">Take this with you</CardTitle>
+          </div>
+          <CardDescription>
+            Nothing from this session is stored — the file you download is the only copy.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {exportError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{exportError}</AlertDescription>
+            </Alert>
+          )}
+          <div className="bg-secondary/60 rounded-lg p-4 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Download format
+            </p>
+            <div className="flex gap-3 flex-wrap">
+              <Button
+                className="gap-2 flex-1"
+                disabled={!sessionId || exporting !== null}
+                onClick={() => handleExport('pdf')}
+              >
+                {exporting === 'pdf'
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <FileText className="h-4 w-4" />}
+                PDF
+              </Button>
+              <Button
+                variant="outline"
+                className="gap-2 flex-1"
+                disabled={!sessionId || exporting !== null}
+                onClick={() => handleExport('word')}
+              >
+                {exporting === 'word'
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <FileType className="h-4 w-4" />}
+                Word
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Save this report to your account?</DialogTitle>
-            <DialogDescription className="leading-relaxed">
-              Saving stores this report — your symptom descriptions, the AI analysis, and its
-              recommendations — as health data in your encrypted MediSage account.
-            </DialogDescription>
-          </DialogHeader>
-          <ul className="text-sm text-muted-foreground space-y-2 list-disc pl-5">
-            <li>It stays in your profile until you delete it — deletion is permanent.</li>
-            <li>The chat assistant will use saved reports to answer your questions.</li>
-            <li>
-              See the{' '}
-              <Link to="/privacy" target="_blank" className="text-primary underline underline-offset-2">
-                Privacy Policy
-              </Link>{' '}
-              for how health data is handled.
-            </li>
-          </ul>
-          {saveError && <p className="text-sm text-destructive">{saveError}</p>}
-          <DialogFooter className="gap-2 sm:gap-2">
-            <Button variant="outline" onClick={() => setSaveOpen(false)} disabled={saving}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving} className="gap-2">
-              {saving ? <><Loader2 className="h-4 w-4 animate-spin" />Saving…</> : 'I understand — save report'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {reportOpen && workflowState.medical_report && (
-        <Card className="shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Full Medical Report</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-96 w-full rounded border bg-secondary/30">
-              <pre className="text-xs font-mono whitespace-pre-wrap leading-relaxed p-4">
-                {workflowState.medical_report}
-              </pre>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      )}
+      <Button variant="outline" onClick={handleReset} className="gap-2 w-full">
+        <RotateCcw className="h-4 w-4" />New diagnosis
+      </Button>
 
       <p className="text-xs text-center text-muted-foreground">
         AI-generated for informational purposes only. Not a medical diagnosis. Always consult a qualified healthcare professional.

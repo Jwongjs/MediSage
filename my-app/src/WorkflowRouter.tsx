@@ -1,150 +1,60 @@
 import React from 'react';
-import { AgentState } from 'types/medical';
 import { DiagnosisFormPage } from 'pages/diagnosis/DiagnosisFormPage';
-import { FollowUpQuestionsPage } from 'pages/diagnosis/FollowUpQuestionsPage';
-import { AnalysisProgressPage } from 'pages/diagnosis/AnalysisProgressPage';
+import { EvidenceResultsPage } from 'pages/diagnosis/EvidenceResultsPage';
+import { CriterionPickerPage } from 'pages/diagnosis/CriterionPickerPage';
 import { FinalReportPage } from 'pages/diagnosis/FinalReportPage';
 import { ErrorPage } from 'pages/diagnosis/ErrorPage';
+import { DiagnosisView, Answer } from 'types/diagnosis';
+
+export type FlowStep = 'form' | 'evidence' | 'questions' | 'summary';
 
 interface WorkflowRouterProps {
-  workflowState: AgentState | null;
+  step: FlowStep;
+  view: DiagnosisView | null;
   loading: boolean;
   error: string | null;
   sessionId: string | null;
-  workflowInfo?: any | null;
-  onStartDiagnosis: (symptoms: string) => Promise<void>;
-  onSubmitFollowUp: (responses: Record<string, string>) => Promise<void>;
-  onSubmitImage?: (image: File) => Promise<void>;
+  onStart: (patientText: string) => Promise<void>;
+  onAnswerQuestions: () => void;
+  onSubmitAnswers: (answers: Record<string, Answer>) => Promise<void>;
+  onFinalize: () => void;
   onReset: () => void;
-  onContinue: () => void; 
 }
 
 export const WorkflowRouter: React.FC<WorkflowRouterProps> = ({
-  workflowState,
-  loading,
-  error,
-  sessionId,
-  workflowInfo,
-  onStartDiagnosis,
-  onSubmitFollowUp,
-  onReset,
-  onContinue
+  step, view, loading, error, sessionId,
+  onStart, onAnswerQuestions, onSubmitAnswers, onFinalize, onReset,
 }) => {
-  
-  // Handle error state
-  if (error) {
-    return (
-      <ErrorPage 
-        error={error}
-        onReset={onReset}
-      />
-    );
+  if (error) return <ErrorPage error={error} onReset={onReset} />;
+
+  if (step === 'form' || !view) {
+    return <DiagnosisFormPage onSubmit={onStart} loading={loading} />;
   }
 
-  // Handle initial state (no workflow started)
-  if (!workflowState && !loading) {
-    return (
-      <DiagnosisFormPage
-        onSubmit={onStartDiagnosis}
-        onContinue={onContinue}
-        loading={loading}
-        sessionId={sessionId}
-        workflowState={null}
-        workflowInfo={workflowInfo}
-      />
-    );
-  }
-
-  // Get current workflow stage
-  const currentStage = workflowState?.current_workflow_stage || 'textual_analysis';
-  
-  console.log('🔄 Current workflow stage:', currentStage);
-
-  // Route to appropriate page based on workflow stage
-  switch (currentStage) {
-    //INITIAL DIAGNOSIS: Show form and results
-    case 'textual_analysis':
-    case 'textual_analysis_complete':
+  switch (step) {
+    case 'evidence':
       return (
-        <DiagnosisFormPage
-          onSubmit={onStartDiagnosis}
-          onContinue={onContinue}
-          loading={loading}
-          sessionId={sessionId}
-          workflowState={workflowState}
-          workflowInfo={workflowInfo}
-        />
-      );
-
-    // SP3 stages — complete after SP3 merge
-    case 'initializing':
-    case 'running_diagnosis':
-      return (
-        <AnalysisProgressPage
-          workflowState={workflowState}
-          loading={loading}
+        <EvidenceResultsPage
+          view={view} loading={loading}
+          onAnswerQuestions={onAnswerQuestions} onFinalize={onFinalize}
           onReset={onReset}
-          onContinue={onContinue}
         />
       );
-    case 'awaiting_sign_responses':
+    case 'questions':
       return (
-        <DiagnosisFormPage
-          onSubmit={onStartDiagnosis}
-          onContinue={onContinue}
-          loading={loading}
-          sessionId={sessionId}
-          workflowState={workflowState}
-          workflowInfo={workflowInfo}
+        <CriterionPickerPage
+          view={view} loading={loading}
+          onSubmit={onSubmitAnswers} onSkip={onFinalize}
         />
       );
-
-    // FOLLOW-UP QUESTIONS: Generate or collect responses
-    // case 'generating_followup_questions':
-    case 'awaiting_followup_responses':
-    case 'processing_followup_responses':
-    case 'followup_analysis_complete':
-    return (
-      <FollowUpQuestionsPage
-        workflowState={workflowState}
-        workflowInfo={workflowInfo} 
-        loading={loading}
-        onSubmitResponses={onSubmitFollowUp}
-        onContinue={onContinue}    
-        onReset={onReset}
-      />
-    );
-
-    // OVERALL ANALYSIS: Processing all data
-    case 'performing_overall_analysis':
-    case 'overall_analysis_complete': 
-      return (
-        <AnalysisProgressPage
-          workflowState={workflowState}
-          loading={loading}
-          onReset={onReset}
-          onContinue={onContinue}
-        />
-      );
-
-    // FINAL MEDICAL REPORT
-    case 'generating_medical_report':
-    case 'workflow_complete':
+    case 'summary':
       return (
         <FinalReportPage
-          workflowState={workflowState}
-          loading={loading}
-          onReset={onReset}
+          view={view} loading={loading}
+          sessionId={sessionId} onReset={onReset}
         />
       );
-
-  default:
-    console.warn('⚠️ Unknown workflow stage:', currentStage);
-    return (
-      <ErrorPage 
-        error={`Unknown workflow stage: ${currentStage}`}
-        onReset={onReset}
-      />
-    );
+    default:
+      return <ErrorPage error={`Unknown step: ${step}`} onReset={onReset} />;
   }
 };

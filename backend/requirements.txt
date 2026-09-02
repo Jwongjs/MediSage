@@ -5,13 +5,8 @@ requests
 aiofiles
 langchain
 langgraph
-langgraph-checkpoint-postgres
-psycopg[binary]
-psycopg-pool
 google-genai
-pydantic[email]
-supabase
-PyJWT
+pydantic
 openai>=1.0.0
 reportlab==4.0.4
 python-docx==1.1.0
@@ -20,7 +15,6 @@ pytest-asyncio>=0.21.0
 httpx
 langchain-groq
 langsmith>=0.1.0
-email-validator
 python-multipart
 slowapi
 redis

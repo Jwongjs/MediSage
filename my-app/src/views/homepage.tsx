@@ -1,6 +1,5 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from 'contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { PageLayout } from 'components/layout/PageLayout';
 import { Footer } from 'components/layout/Footer';
 import { Button } from '@/components/ui/button';
@@ -8,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import {
-  Activity, Brain, FileText, MessageSquare, ShieldCheck,
+  Activity, Brain, FileText, ShieldCheck,
   ChevronRight, Clock, ArrowRight, Stethoscope,
 } from 'lucide-react';
 
@@ -16,13 +15,13 @@ const FEATURES = [
   {
     icon: Brain,
     title: 'AI Differential Diagnosis',
-    description: 'Describe your symptoms and receive a top-5 differential with confidence scores, layman explanations, and severity assessment.',
+    description: 'Describe your symptoms and receive a ranked differential showing which criteria each condition is supported or contradicted by.',
     accent: 'text-primary bg-primary/5',
   },
   {
-    icon: MessageSquare,
-    title: 'Medical History Chat',
-    description: 'Ask questions about your past sessions. The assistant retrieves context from your stored diagnostic reports — no hallucination.',
+    icon: ShieldCheck,
+    title: 'No Account, Nothing Stored',
+    description: 'There is no sign-up and no database. A session lives only while you have it open — the report you download is the only copy.',
     accent: 'text-accent bg-accent/5',
   },
   {
@@ -34,16 +33,13 @@ const FEATURES = [
 ] as const;
 
 const STEPS = [
-  { n: '01', title: 'Complete intake',        body: 'Age, medications, allergies, history — collected once, passed to every stage.' },
-  { n: '02', title: 'Describe symptoms',      body: 'Natural language. The AI validates and flags vague or unsafe descriptions.' },
-  { n: '03', title: 'Check observable signs', body: 'LLM-generated sign prompts targeted to your differential, then 4 adaptive follow-up questions.' },
-  { n: '04', title: 'Receive your report',    body: 'Downloadable medical report with diagnosis, reasoning, severity, and next steps.' },
+  { n: '01', title: 'Describe symptoms',      body: 'Natural language. The AI validates and flags vague or unsafe descriptions.' },
+  { n: '02', title: 'Check observable signs', body: 'Sign prompts targeted to your differential, then follow-up questions that separate the candidates.' },
+  { n: '03', title: 'Download your report',   body: 'A report with the differential, the evidence behind it, severity, and next steps.' },
 ] as const;
 
 const Homepage: React.FC = () => {
-  const { loggedIn } = useAuth();
   const navigate = useNavigate();
-  const cta = loggedIn ? '/diagnosis' : '/register';
 
   return (
     <PageLayout>
@@ -105,30 +101,20 @@ const Homepage: React.FC = () => {
               <Button
                 size="lg"
                 className="gap-2 text-base"
-                onClick={() => navigate(cta)}
+                onClick={() => navigate('/diagnosis')}
               >
                 Start your assessment<ArrowRight className="h-4 w-4" />
               </Button>
-              {!loggedIn && (
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="border-primary/40 bg-transparent text-primary hover:bg-primary/10 hover:text-primary"
-                  asChild
-                >
-                  <Link to="/login">Sign in</Link>
-                </Button>
-              )}
             </div>
             <div
               className="flex flex-wrap items-center gap-x-6 gap-y-2 animate-fade-in-up"
               style={{ animationDelay: '400ms' }}
             >
               <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <ShieldCheck className="h-4 w-4 text-primary" />Encrypted & private — you control your data
+                <ShieldCheck className="h-4 w-4 text-primary" />No account — nothing is stored
               </span>
               <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <FileText className="h-4 w-4 text-primary" />Reports saved only when you choose
+                <FileText className="h-4 w-4 text-primary" />Report downloaded, not saved
               </span>
               <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <Clock className="h-4 w-4 text-primary" />Results in under 2 min
@@ -160,8 +146,8 @@ const Homepage: React.FC = () => {
       {/* How it works */}
       <section className="container mx-auto max-w-6xl px-4 py-16">
         <h2 className="text-2xl md:text-3xl font-bold mb-2">How it works</h2>
-        <p className="text-muted-foreground mb-10">Four steps from first symptom to structured report.</p>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
+        <p className="text-muted-foreground mb-10">Three steps from first symptom to downloaded report.</p>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {STEPS.map(({ n, title, body }, i) => (
             <div key={n} className="flex flex-col gap-3">
               <div className="flex items-center gap-3">
@@ -181,10 +167,10 @@ const Homepage: React.FC = () => {
           <Stethoscope className="h-10 w-10 text-primary" />
           <h2 className="text-2xl md:text-3xl font-bold">Ready to start?</h2>
           <p className="text-muted-foreground max-w-md">
-            Create a free account and run your first diagnostic assessment in under two minutes.
+            Run a diagnostic assessment in under two minutes. No sign-up required.
           </p>
-          <Button size="lg" onClick={() => navigate(cta)} className="gap-2 mt-2">
-            {loggedIn ? 'Go to diagnosis' : 'Create free account'}<ArrowRight className="h-4 w-4" />
+          <Button size="lg" onClick={() => navigate('/diagnosis')} className="gap-2 mt-2">
+            Start your assessment<ArrowRight className="h-4 w-4" />
           </Button>
           <p className="text-xs text-muted-foreground">
             For educational purposes only. Not a substitute for professional medical advice.

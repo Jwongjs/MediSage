@@ -1,0 +1,57 @@
+[
+  {
+    "case_id": "maccrobat-17803823",
+    "patient_text": "A 23 year old white male with a 4 year history of Crohn's disease presented with an acute two day history of malaise, fever, abdominal pain, vomiting and stomal diarrhoea.",
+    "documented_diagnosis": "Crohn's disease",
+    "annotated_symptoms": [
+      "diarrhoea",
+      "fever",
+      "malaise",
+      "pain",
+      "vomiting"
+    ]
+  },
+  {
+    "case_id": "maccrobat-21067996",
+    "patient_text": "A 41-year-old man with weight loss, nausea, vomiting, and abdominal pain was referred for an abdominal CT scan to rule out intraabdominal pathology.",
+    "documented_diagnosis": "intraabdominal pathology",
+    "annotated_symptoms": [
+      "nausea",
+      "pain",
+      "vomiting",
+      "weight loss"
+    ]
+  },
+  {
+    "case_id": "maccrobat-21527041",
+    "patient_text": "An 81-year-old female with hypertension and gout was admitted to Taichung Veterans General Hospital due to abdominal pain and hematemesis.",
+    "documented_diagnosis": "gout",
+    "annotated_symptoms": [
+      "hematemesis",
+      "hypertension",
+      "pain"
+    ]
+  },
+  {
+    "case_id": "maccrobat-26361640",
+    "patient_text": "A 68-year-old female nonsmoker, nondrinker with a medical history of hypertension presented with new-onset painless jaundice and pruritus, a three-month history of 9.9 kg weight loss and chronic diarrhea with four to five loose bowel movements per day.",
+    "documented_diagnosis": "hypertension",
+    "annotated_symptoms": [
+      "diarrhea",
+      "jaundice",
+      "pruritus",
+      "weight loss"
+    ]
+  },
+  {
+    "case_id": "maccrobat-28353556",
+    "patient_text": "A 33-year-old Moroccan man with a 5-month history of recurring sinusitis presented with temperature, myalgia, cough, and hemoptysis.",
+    "documented_diagnosis": "sinusitis",
+    "annotated_symptoms": [
+      "cough",
+      "hemoptysis",
+      "myalgia",
+      "temperature"
+    ]
+  }
+]

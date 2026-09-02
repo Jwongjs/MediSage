@@ -123,3 +123,5 @@ my-app/e2e/playwright-report/
 my-app/e2e/screenshots/
 my-app/e2e/test-results/
 my-app/e2e/results.xml
+
+backend/data/hp.obo
