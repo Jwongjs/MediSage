@@ -5,7 +5,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Info, ListChecks, RotateCcw, HelpCircle } from 'lucide-react';
+import { Info, ListChecks, RotateCcw, HelpCircle, FileCheck } from 'lucide-react';
 import { DiagnosisProgress } from 'components/medical/DiagnosisProgress';
 import { CandidateCard } from 'components/medical/CandidateCard';
 import { DiagnosisView } from 'types/diagnosis';
@@ -14,13 +14,14 @@ interface Props {
   view: DiagnosisView;
   loading: boolean;
   onAnswerQuestions: () => void;
+  onFinalize: () => void;
   onReset: () => void;
 }
 
 const EXPANDED = 3;
 
 export const EvidenceResultsPage: React.FC<Props> = ({
-  view, loading, onAnswerQuestions, onReset,
+  view, loading, onAnswerQuestions, onFinalize, onReset,
 }) => {
   const flat = view.ranking.flatMap(group =>
     group.diagnoses.map(name => ({
@@ -116,15 +117,22 @@ export const EvidenceResultsPage: React.FC<Props> = ({
         </div>
       )}
 
+      {/* Finalising is always available. It is the only route to the report, and
+          the report is the only copy the user gets — gating it on open_questions
+          stranded anyone whose differential produced none. */}
       <div className="flex gap-3 flex-wrap">
+        <Button onClick={onFinalize} disabled={loading} className="gap-2">
+          <FileCheck className="h-4 w-4" />
+          Finish and get report
+        </Button>
         {view.open_questions.length > 0 && (
-          <Button onClick={onAnswerQuestions} disabled={loading} className="gap-2">
+          <Button variant="secondary" onClick={onAnswerQuestions} disabled={loading} className="gap-2">
             <ListChecks className="h-4 w-4" />
             Answer {view.open_questions.length} question
             {view.open_questions.length > 1 ? 's' : ''}
           </Button>
         )}
-        <Button variant="outline" onClick={onReset} disabled={loading} className="gap-2">
+        <Button variant="ghost" onClick={onReset} disabled={loading} className="gap-2">
           <RotateCcw className="h-4 w-4" />
           Start over
         </Button>

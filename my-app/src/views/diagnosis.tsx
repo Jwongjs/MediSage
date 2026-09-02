@@ -1,7 +1,6 @@
 import React from 'react';
 import { WorkflowRouter } from 'WorkflowRouter';
 import { useDiagnosis } from 'hooks/useDiagnosis';
-import { PrivacyPolicyModal } from 'components/medical/PrivacyPolicyModal';
 import { PageLayout } from 'components/layout/PageLayout';
 
 const DiagnosisFunction: React.FC = () => {
@@ -10,9 +9,7 @@ const DiagnosisFunction: React.FC = () => {
     view,
     loading,
     error,
-    showPrivacyModal,
-    handlePrivacyAccepted,
-    dismissPrivacyModal,
+    sessionId,
     startDiagnosis,
     goToQuestions,
     submitAnswers,
@@ -22,18 +19,13 @@ const DiagnosisFunction: React.FC = () => {
 
   return (
     <PageLayout>
-      {showPrivacyModal && (
-        <PrivacyPolicyModal
-          onAccept={handlePrivacyAccepted}
-          onCancel={dismissPrivacyModal}
-        />
-      )}
       <div className="container mx-auto max-w-3xl px-4 py-8 space-y-8">
         <WorkflowRouter
           step={step}
           view={view}
           loading={loading}
           error={error}
+          sessionId={sessionId}
           onStart={startDiagnosis}
           onAnswerQuestions={goToQuestions}
           onSubmitAnswers={submitAnswers}

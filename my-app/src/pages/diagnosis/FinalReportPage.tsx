@@ -1,19 +1,22 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState } from 'react';
 import { DiagnosisProgress } from 'components/medical/DiagnosisProgress';
-import { useAuth } from 'contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, RotateCcw, AlertTriangle, CheckCircle2, ExternalLink } from 'lucide-react';
+import {
+  Loader2, RotateCcw, AlertTriangle, ExternalLink,
+  Download, FileText, FileType, AlertCircle,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { DiagnosisView } from 'types/diagnosis';
+import { DiagnosisService } from 'services/diagnosis';
+import { DiagnosisView, ExportFormat } from 'types/diagnosis';
 
 interface FinalReportPageProps {
   view: DiagnosisView;
   loading: boolean;
+  sessionId: string | null;
   onReset: () => void;
 }
 
@@ -28,8 +31,36 @@ const SEVERITY_CLASS: Record<string, string> = {
   unknown:  'severity-unknown',
 };
 
-export const FinalReportPage: React.FC<FinalReportPageProps> = ({ view, loading, onReset }) => {
-  const { loggedIn } = useAuth();
+export const FinalReportPage: React.FC<FinalReportPageProps> = ({
+  view, loading, sessionId, onReset,
+}) => {
+  // Which format is in flight, so only that button spins while both disable.
+  const [exporting, setExporting] = useState<ExportFormat | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  // Resetting drops the session id, which is the only handle on the report.
+  // Nothing is stored, so an accidental click is unrecoverable.
+  const handleReset = () => {
+    const confirmed = window.confirm(
+      'Start a new diagnosis? This report is not saved anywhere — if you have not downloaded it, it will be gone.'
+    );
+    if (confirmed) onReset();
+  };
+
+  const handleExport = async (format: ExportFormat) => {
+    if (!sessionId) return;
+    setExporting(format);
+    setExportError(null);
+    try {
+      await DiagnosisService.exportReport(sessionId, format);
+    } catch (error) {
+      setExportError(
+        error instanceof Error ? error.message : 'Could not build the file. Please try again.'
+      );
+    } finally {
+      setExporting(null);
+    }
+  };
 
   if (loading || !view.summary) {
     return (
@@ -119,18 +150,55 @@ export const FinalReportPage: React.FC<FinalReportPageProps> = ({ view, loading,
         </Card>
       )}
 
-      {loggedIn && (
-        <div className="flex items-start gap-2.5 rounded-lg bg-secondary/60 p-4">
-          <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            This session is saved to your{' '}
-            <Link to="/history" className="text-primary underline underline-offset-2">history</Link>.
-            You can delete it there at any time — deletion is permanent.
-          </p>
-        </div>
-      )}
+      <Card className="shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Download className="h-5 w-5 text-primary" />
+            <CardTitle className="text-base">Take this with you</CardTitle>
+          </div>
+          <CardDescription>
+            Nothing from this session is stored — the file you download is the only copy.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {exportError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{exportError}</AlertDescription>
+            </Alert>
+          )}
+          <div className="bg-secondary/60 rounded-lg p-4 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Download format
+            </p>
+            <div className="flex gap-3 flex-wrap">
+              <Button
+                className="gap-2 flex-1"
+                disabled={!sessionId || exporting !== null}
+                onClick={() => handleExport('pdf')}
+              >
+                {exporting === 'pdf'
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <FileText className="h-4 w-4" />}
+                PDF
+              </Button>
+              <Button
+                variant="outline"
+                className="gap-2 flex-1"
+                disabled={!sessionId || exporting !== null}
+                onClick={() => handleExport('word')}
+              >
+                {exporting === 'word'
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <FileType className="h-4 w-4" />}
+                Word
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      <Button variant="outline" onClick={onReset} className="gap-2 w-full">
+      <Button variant="outline" onClick={handleReset} className="gap-2 w-full">
         <RotateCcw className="h-4 w-4" />New diagnosis
       </Button>
 

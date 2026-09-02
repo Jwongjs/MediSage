@@ -46,9 +46,4 @@ export interface DiagnosisView {
   summary: Summary | null;
 }
 
-export interface HistoryEntry {
-  id: string;
-  session_id: string;
-  title: string;
-  created_at: string;
-}
+export type ExportFormat = 'pdf' | 'word';

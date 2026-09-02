@@ -99,7 +99,7 @@ export const CriterionPickerPage: React.FC<Props> = ({ view, loading, onSubmit, 
                   : `Update with ${answered} answer${answered === 1 ? '' : 's'}`}
               </Button>
               <Button type="button" variant="outline" onClick={onSkip} disabled={busy}>
-                Skip
+                Skip and get report
               </Button>
             </div>
           </CardContent>

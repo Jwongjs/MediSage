@@ -13,6 +13,7 @@ interface WorkflowRouterProps {
   view: DiagnosisView | null;
   loading: boolean;
   error: string | null;
+  sessionId: string | null;
   onStart: (patientText: string) => Promise<void>;
   onAnswerQuestions: () => void;
   onSubmitAnswers: (answers: Record<string, Answer>) => Promise<void>;
@@ -21,7 +22,7 @@ interface WorkflowRouterProps {
 }
 
 export const WorkflowRouter: React.FC<WorkflowRouterProps> = ({
-  step, view, loading, error,
+  step, view, loading, error, sessionId,
   onStart, onAnswerQuestions, onSubmitAnswers, onFinalize, onReset,
 }) => {
   if (error) return <ErrorPage error={error} onReset={onReset} />;
@@ -35,7 +36,8 @@ export const WorkflowRouter: React.FC<WorkflowRouterProps> = ({
       return (
         <EvidenceResultsPage
           view={view} loading={loading}
-          onAnswerQuestions={onAnswerQuestions} onReset={onReset}
+          onAnswerQuestions={onAnswerQuestions} onFinalize={onFinalize}
+          onReset={onReset}
         />
       );
     case 'questions':
@@ -46,7 +48,12 @@ export const WorkflowRouter: React.FC<WorkflowRouterProps> = ({
         />
       );
     case 'summary':
-      return <FinalReportPage view={view} loading={loading} onReset={onReset} />;
+      return (
+        <FinalReportPage
+          view={view} loading={loading}
+          sessionId={sessionId} onReset={onReset}
+        />
+      );
     default:
       return <ErrorPage error={`Unknown step: ${step}`} onReset={onReset} />;
   }

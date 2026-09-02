@@ -3,7 +3,6 @@
 import { useState, useCallback } from 'react';
 import { DiagnosisView, Answer } from 'types/diagnosis';
 import { DiagnosisService } from 'services/diagnosis';
-import { ApiService } from 'services/api';
 import { FlowStep } from 'WorkflowRouter';
 
 interface DiagnosisState {
@@ -12,7 +11,6 @@ interface DiagnosisState {
   loading: boolean;
   error: string | null;
   sessionId: string | null;
-  privacyPolicyPending: (() => Promise<void>) | null;
 }
 
 const INITIAL_STATE: DiagnosisState = {
@@ -21,13 +19,7 @@ const INITIAL_STATE: DiagnosisState = {
   loading: false,
   error: null,
   sessionId: null,
-  privacyPolicyPending: null,
 };
-
-// The compliance gate is a 403 carrying this marker in its body; DiagnosisService
-// surfaces the raw response text as the Error message.
-const isPrivacyPolicyRequired = (error: unknown): boolean =>
-  error instanceof Error && error.message.includes('privacy_policy_required');
 
 const messageOf = (error: unknown, fallback: string): string =>
   error instanceof Error ? error.message : fallback;
@@ -48,17 +40,6 @@ export const useDiagnosis = () => {
         sessionId: response.session_id,
       }));
     } catch (error) {
-      if (isPrivacyPolicyRequired(error)) {
-        setState(prev => ({
-          ...prev,
-          loading: false,
-          privacyPolicyPending: async () => {
-            setState(p => ({ ...p, privacyPolicyPending: null }));
-            await startDiagnosis(patientText);
-          },
-        }));
-        return;
-      }
       setState(prev => ({ ...prev, loading: false, error: messageOf(error, 'Diagnosis failed') }));
     }
   }, []);
@@ -85,17 +66,6 @@ export const useDiagnosis = () => {
         view: response.result,
       }));
     } catch (error) {
-      if (isPrivacyPolicyRequired(error)) {
-        setState(prev => ({
-          ...prev,
-          loading: false,
-          privacyPolicyPending: async () => {
-            setState(p => ({ ...p, privacyPolicyPending: null }));
-            await submitAnswers(answers);
-          },
-        }));
-        return;
-      }
       setState(prev => ({ ...prev, loading: false, error: messageOf(error, 'Could not update with your answers') }));
     }
   }, [state.sessionId]);
@@ -118,31 +88,9 @@ export const useDiagnosis = () => {
         view: response.result,
       }));
     } catch (error) {
-      if (isPrivacyPolicyRequired(error)) {
-        setState(prev => ({
-          ...prev,
-          loading: false,
-          privacyPolicyPending: async () => {
-            setState(p => ({ ...p, privacyPolicyPending: null }));
-            await finalize();
-          },
-        }));
-        return;
-      }
       setState(prev => ({ ...prev, loading: false, error: messageOf(error, 'Could not build your summary') }));
     }
   }, [state.sessionId]);
-
-  const handlePrivacyAccepted = useCallback(async () => {
-    await ApiService.acceptPrivacyPolicy();
-    if (state.privacyPolicyPending) {
-      await state.privacyPolicyPending();
-    }
-  }, [state.privacyPolicyPending]);
-
-  const dismissPrivacyModal = useCallback(() => {
-    setState(prev => ({ ...prev, privacyPolicyPending: null }));
-  }, []);
 
   const reset = useCallback(() => {
     setState(INITIAL_STATE);
@@ -153,9 +101,7 @@ export const useDiagnosis = () => {
     view: state.view,
     loading: state.loading,
     error: state.error,
-    showPrivacyModal: !!state.privacyPolicyPending,
-    handlePrivacyAccepted,
-    dismissPrivacyModal,
+    sessionId: state.sessionId,
     startDiagnosis,
     goToQuestions,
     submitAnswers,
