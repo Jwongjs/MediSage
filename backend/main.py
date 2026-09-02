@@ -116,12 +116,15 @@ app.include_router(diagnosis_router)
 @app.get("/")
 async def root():
     return {
-        "message": "AI Medical Diagnosis API",
+        "message": "MediSage evidence-based differential API",
         "version": "2.0.0",
         "endpoints": {
             "health": "/health",
             "docs": "/docs",
-            "textual_analysis": "/patient/textual_analysis",
+            "start": "/diagnosis/start",
+            "answers": "/diagnosis/{session_id}/answers",
+            "finalize": "/diagnosis/{session_id}/finalize",
+            "export": "/patient/export_report",
         },
     }
 

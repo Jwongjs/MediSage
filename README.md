@@ -1,66 +1,100 @@
 # MediSage
 
-An AI medical-diagnosis assistant. Patients describe symptoms in plain language and MediSage runs a guided clinical workflow — initial analysis, adaptive follow-up questions, an overall assessment, and a structured medical report — backed by a retrieval-augmented chatbot that answers questions grounded in the patient's own saved reports.
+An anonymous pre-consultation triage tool. Describe your symptoms in plain
+language and MediSage returns a ranked differential with an **evidence map** —
+for each candidate condition, which diagnostic criteria your account supports,
+which it contradicts, and which nobody has established yet — then lets you close
+the gaps that actually separate the candidates and download the result.
+
+**No accounts. No login. Nothing is stored.** The report you download is the only
+copy.
 
 > [!WARNING]
-> **Not a medical device.** MediSage is decision-support and educational software, not a substitute for professional medical advice, diagnosis, or treatment. It surfaces possibilities and routes emergencies to "seek immediate care" — it does not make clinical decisions. Always consult a qualified clinician.
+> **Not a medical device.** MediSage is decision-support and educational
+> software, not a substitute for professional medical advice, diagnosis, or
+> treatment. It surfaces possibilities and flags when to seek urgent care — it
+> does not make clinical decisions. Always consult a qualified clinician.
 
 ---
 
-## Screenshots
+## Why there is no confidence score
 
-> _Drop PNGs into `assets/screenshots/` (filenames below) and they'll render here._
+Most symptom checkers show a percentage. MediSage deliberately does not compute,
+store or display one anywhere.
 
-| Home | Diagnosis intake |
-|------|------------------|
-| ![Home page](assets/screenshots/home.png) | ![Diagnosis intake form](assets/screenshots/diagnosis-form.png) |
+The design follows Ren et al. (arXiv:2601.15645), which benchmarked 27
+confidence estimators on medical consultation data. Plain confidence elicitation
+— asking the model how sure it is — was the least robust method tested. More
+decisively, their agent experiment found the best estimator and plain
+elicitation reached **identical diagnostic accuracy**; the better number bought
+only efficiency, i.e. knowing when to stop asking questions.
 
-| Analysis & follow-up questions | Final medical report |
-|--------------------------------|----------------------|
-| ![Analysis and follow-up questions](assets/screenshots/analysis.png) | ![Final medical report](assets/screenshots/report.png) |
+So MediSage keeps that method's useful half — the supported / contradicted /
+unaddressed evidence map — and hands the stopping decision to the user. A
+percentage is unactionable for a patient. *"We don't know whether you have
+rebound tenderness"* is actionable.
 
-| RAG chatbot |
-|-------------|
-| ![RAG chatbot grounded in saved reports](assets/screenshots/chatbot.png) |
-
-<!-- TODO: capture and add the screenshots above (recommended width ~1200px). -->
-
----
+Ranking is a **lexicographic comparison of evidence tallies**: no weights, no
+arithmetic, nothing calibratable. A contradicted core criterion is the strongest
+evidence against a candidate, so it leads. **Ties are preserved, not broken** —
+"what you have told us does not separate these" is the honest statement, and it
+is what motivates answering the next question.
 
 ## How it works
 
-The backend is a [LangGraph](https://langchain-ai.github.io/langgraph/) state machine. Each stage is a node; routing between them is driven by confidence scores and the patient's answers, and graph state is checkpointed to Postgres so a session can pause for user input and resume cleanly.
+The backend is a [LangGraph](https://langchain-ai.github.io/langgraph/) pipeline
+of three LLM nodes separated by two purely deterministic stages.
 
 ```
-symptoms ─▶ textual analysis ─▶ follow-up questions ─▶ overall analysis ─▶ medical report
-                                   (adaptive, optional)        │
-                                                               ▼
-                          RAG chatbot  ◀──  saved reports ingested into pgvector
+symptoms
+   │
+   ▼
+[A] differential ──▶ [B] criteria profiles ──▶ merge ──▶ [C] evidence ──▶ rank ──▶ summary
+      (strong)          (per candidate,      (HPO         (one batched    (lexico-   │
+       1 call            cached, parallel)   canonical-    call over all    graphic)  ▼
+                                             isation)      criteria)              download
+                                                                                  PDF / Word
+                                              ▲                                      │
+                                              └──────── your yes / no answers ◀───────┘
 ```
 
-- **Textual analysis** — differential diagnosis with confidence scoring from a symptom description.
-- **Follow-up questions** — LLM-generated, symptom-specific clarifying questions that re-rank the differential.
-- **Overall analysis** — synthesises symptoms + answers, applies a critical-condition floor, and redirects emergencies.
-- **Medical report** — a structured, layman-readable summary, exportable to PDF or Word.
-- **RAG chatbot** — each saved report is chunked and embedded into pgvector; the chatbot answers follow-up questions grounded only in that patient's documents.
+- **Node A — differential.** Candidate conditions from the symptom text. No
+  confidence field; the model's ordering is discarded.
+- **Node B — criteria profiles.** For each candidate, its diagnostic criteria,
+  each tagged `strong` / `moderate` / `weak` and typed as symptom, history, lab,
+  imaging or demographic. **This node never sees the patient's text** — if it
+  did, it would write criteria that fit the presentation and every criterion
+  would come back "supported". The isolation is structural, not a prompt
+  instruction, and there is a test that fails if it is ever broken.
+- **Merge (deterministic).** Criteria are canonicalised against the
+  [Human Phenotype Ontology](https://hpo.jax.org/) so the same underlying
+  symptom is not judged twice under different candidates.
+- **Node C — evidence.** One batched call judges every merged criterion. Every
+  `supported` / `contradicted` verdict must quote the patient **verbatim**; a
+  quote that cannot be located in their text is rejected and the criterion
+  downgraded. The key set is fixed by the merge stage — keys the model invents
+  are discarded, keys it omits default to unaddressed.
+- **Rank and ask (deterministic).** Candidates are ordered lexicographically;
+  open questions are ordered by how much answering them could actually reorder
+  the differential.
+- **Download.** The evidence table exports to PDF or Word — a ranked
+  differential with quoted evidence and explicit information gaps, which is a
+  better clinician handoff than generated prose.
 
 ## Tech stack
 
 | Layer | Choice |
 |-------|--------|
 | API | Python 3.11, FastAPI, LangGraph |
-| LLM | Groq — Llama 3.3 70B (OpenAI-compatible; swappable by env var) |
-| Embeddings | Gemini `text-embedding-004` |
-| Database | Supabase (PostgreSQL) — auth, reports, and pgvector store |
-| State | `AsyncPostgresSaver` checkpointer |
+| LLM | Groq, OpenAI-compatible; model set by `LLM_MODEL` |
+| Ontology | Human Phenotype Ontology (`hp.obo`, fetched at deploy) |
+| State | `MemorySaver` — in-process, deliberately not persisted |
 | Frontend | React 18, Vite, Tailwind CSS + shadcn/ui |
-| Rate limiting | `slowapi` — 20 req/min per IP on `/patient/*` |
-| Auth | JWT (HTTP-only cookie) + a privacy-policy gate |
+| Rate limiting | `slowapi`, per IP; Redis when available, in-memory otherwise |
+| Auth | **None.** There are no accounts. |
 | Deploy | Docker, Railway, GitHub Actions CI/CD |
 
 ## Quick start
-
-The whole stack runs from one command with Docker.
 
 ```bash
 git clone https://github.com/Jwongjs/MediSage.git
@@ -76,6 +110,16 @@ docker compose up --build
 | Backend API | http://localhost:8000 |
 | API docs (Swagger) | http://localhost:8000/docs |
 
+The backend fetches the ontology on first run:
+
+```bash
+mkdir -p backend/data
+curl -L -o backend/data/hp.obo https://purl.obolibrary.org/obo/hp.obo
+```
+
+If it is absent the app still runs — criteria fall back to local keys, which
+degrades merge quality without breaking anything.
+
 ### Required environment variables
 
 Set these in `backend/.env`:
@@ -83,13 +127,19 @@ Set these in `backend/.env`:
 | Variable | Purpose |
 |----------|---------|
 | `LLM_API_KEY` | Groq API key (`gsk_...`) |
-| `LLM_BASE_URL` / `LLM_MODEL` | LLM endpoint + model (defaults to Groq + Llama 3.3 70B) |
-| `SUPABASE_URL` / `SUPABASE_API_KEY` | Supabase project + anon key |
-| `SUPABASE_DB_URL` | Direct Postgres URL (required by the checkpointer) |
-| `GEMINI_API_KEY` | RAG embeddings |
-| `JWT_SECRET` | 32+ char secret for auth cookies |
-| `REDIS_URL` | Redis (auto-set in Docker / Railway) |
+| `LLM_MODEL` | Model id. **The historic default `llama-3.3-70b-versatile` is decommissioned** — set this explicitly. |
+| `LLM_BASE_URL` | Defaults to `https://api.groq.com/openai/v1` |
+| `REDIS_URL` | Optional. Rate limiting falls back to in-memory. |
 | `ALLOWED_ORIGINS` / `APP_ENV` | CORS origins + environment |
+
+There is no database, no auth secret and no embedding key to configure. If you
+see `SUPABASE_*` or `GEMINI_API_KEY` in an old `.env`, they are unused.
+
+> [!IMPORTANT]
+> Do **not** set `LANGCHAIN_TRACING_V2=true`. LangGraph reads it implicitly and
+> would ship every node run — including the full symptom narrative — to
+> LangSmith's cloud, which defeats the point of storing nothing. `main.py`
+> force-disables it, but do not fight that.
 
 ### Running without Docker
 
@@ -106,41 +156,63 @@ cd my-app && npm install && npm run dev                                       # 
 ```
 MediSage/
 ├── backend/                 FastAPI + LangGraph
-│   ├── api/                 auth, diagnosis, and chat routes
-│   ├── graphs/              patient_workflow + rag_chatbot graphs
-│   ├── nodes/               workflow node implementations
-│   ├── rag/                 Gemini embedder + pgvector retriever
+│   ├── api/                 diagnosis + export routes
+│   ├── diagnosis/           HPO index, criterion merge, ranking  (no LLM)
+│   ├── knowledge/           retrieval seam + stub corpus
+│   ├── graphs/              the diagnosis workflow
+│   ├── nodes/               differential, profile, evidence, summary
 │   ├── llm/                 LLM client (Groq / OpenAI-compatible)
-│   ├── schemas/             Pydantic models
+│   ├── schemas/             state model
+│   ├── migrations/          SQL history (nothing is written at runtime)
+│   ├── data/                hp.obo (gitignored) + criteria corpus
 │   ├── tests/               pytest suite
 │   ├── config.py · main.py
 │   └── Dockerfile
 ├── my-app/                  React + Vite frontend
 │   ├── src/                 views, pages, components, hooks
-│   ├── e2e/                 Playwright specs
 │   ├── Dockerfile · nginx.conf
-├── docker-compose.yml       backend + frontend + Redis
-├── railway.toml             deploy config
-└── .github/workflows/ci.yml test → build → deploy
+├── docker-compose.yml
+├── railway.toml
+└── .github/workflows/ci.yml
 ```
 
 ## Testing
 
 ```bash
-cd backend && python -m pytest tests/    # API + workflow unit tests
-cd my-app  && npx playwright test        # end-to-end flows
+cd backend && python -m pytest tests/     # 123 tests
+cd my-app  && npx tsc --noEmit            # the frontend has no test runner
+cd my-app  && npx vite build
 ```
+
+Two tests in `tests/test_rag_embedder.py` call a live API and are rate-limit
+flaky; deselect them for a deterministic count.
 
 ## Deployment
 
-Two Docker images (FastAPI backend, nginx-served frontend build) deploy to **Railway** with **Redis** as a managed plugin. GitHub Actions runs `test → docker build → deploy` on every push to `main`; CORS, rate limiting, and structured JSON logging activate when `APP_ENV=production`. The `/health` endpoint actively probes the database and LLM and reports `degraded` if either is unreachable.
+Two Docker images (FastAPI backend, nginx-served frontend build) deploy to
+**Railway**. GitHub Actions runs `test → docker build → deploy` on push to
+`main`. CORS, rate limiting and structured JSON logging activate when
+`APP_ENV=production`. `/health` probes the LLM and reports `degraded` if it is
+unreachable.
+
+> [!IMPORTANT]
+> The backend must run with **one worker**. Session state lives in an
+> in-process `MemorySaver`, so a second worker would not see sessions started by
+> the first and roughly half of all follow-up requests would 404. Scale by
+> adding container instances only behind session affinity.
 
 ## Security & privacy
 
-- CORS locked to `ALLOWED_ORIGINS`; HTTPS terminated by the platform.
-- Per-IP rate limiting on patient endpoints.
-- Supabase Row-Level Security isolates each user's profile, reports, and vector chunks.
-- No secrets in source; a privacy-policy gate guards diagnosis endpoints; PII is kept out of LLM prompts.
+- **No accounts, no login, no cookies.** Nothing to breach.
+- **Nothing is persisted.** Session state is in-process and lost on restart; the
+  downloaded report is the only copy.
+- Symptom text is still **sent to a third-party LLM provider** for inference.
+  Anonymity removes storage, not transmission — their retention is their policy.
+- The session id is the only handle on a session, so it is full-entropy,
+  server-generated, and never client-supplied.
+- CORS locked to `ALLOWED_ORIGINS`; per-IP rate limiting on every endpoint that
+  costs money or returns a document.
+- No secrets in source.
 
 ## License
 
