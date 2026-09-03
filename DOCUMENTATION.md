@@ -115,7 +115,7 @@ the criterion.
 
 | Path | Responsibility |
 |---|---|
-| `backend/diagnosis/hpo.py` | HPO index; `normalize`, `strip_prose`, `lookup` |
+| `backend/diagnosis/hpo.py` | **dead** — HPO ontology matching, unused since 2026-09-04 (see §8) |
 | `backend/diagnosis/merge.py` | canonicalisation, the diagnosis×criterion matrix |
 | `backend/diagnosis/ranking.py` | lexicographic ranking, tie groups, `split_rank` |
 | `backend/knowledge/interface.py` | corpus retrieval seam (Node B grounding), no LLM — the only import surface |
@@ -185,7 +185,7 @@ also what a client sees after a restart, since state is in-process.
 ## 5. Testing
 
 ```bash
-cd backend && python -m pytest tests/     # 129 tests
+cd backend && python -m pytest tests/     # 107 tests
 cd my-app  && npx tsc --noEmit && npx vite build
 ```
 
@@ -209,17 +209,21 @@ accuracy metric.
   holds an in-flight latch against double-clicks; two tabs remain unhandled.
 - **Single worker only.** In-process state; a second worker 404s sessions it did
   not start.
-- **HPO resolution is ~35%** on real Node B output. The remaining gap is Node B
-  emitting prose (`"Presence of nausea"`) where HPO names concepts; the fix is a
-  prompt change, not embeddings.
-- **The embedding fallback is disabled.** `merge.py` would embed all 19,836 HPO
-  labels serially per call. Needs precomputed vectors first.
 - **The OPQRST alternative path (spec §12.3) was never built.**
 - **`plain_label` has no independent quality check.** It is Node B's own
   rewrite of its own `description`, not a separately-graded output, so a
   plain label that quietly loses the clinical specificity of its source
   criterion (e.g. broadens "McBurney's point tenderness" into generic
   "belly pain") would not be caught by anything in the pipeline today.
+- **`importance` (strong/moderate/weak) is an unverified Node B judgment
+  call, and it directly drives ranking.** The prompt gives a one-line rubric
+  and the model applies it per criterion while writing the profile, before
+  any patient text exists — nothing downstream checks that call. It is
+  sometimes grounded by retrieved corpus passages and sometimes not (see
+  `grounded` in §1), and either way it is cached and reused for every
+  session, never personalised. `ranking.py`'s `sort_key()` uses `importance`
+  to place each criterion in its lexicographic tuple, so a mis-tagged
+  criterion does not just mislabel the UI, it can change rank order.
 - **The consumer definition is fully ungrounded LLM output — the one field in
   this pipeline with no sourcing, no verification, and no structural check of
   any kind.** Node A is asked for a plain-language definition of each
@@ -259,6 +263,13 @@ Not deleted, so that greps do not mislead you into thinking it is live:
 - `backend/models/ai_schema.py`, `backend/nodes/old_version_ref/` — same era.
 - `backend/test/` (singular) — old GPU/CUDA scripts. The live suite is
   `backend/tests/` (plural); `pytest.ini` scopes to it.
+- `backend/diagnosis/hpo.py` (ontology matching only — `normalize()` moved to
+  `merge.py` and is live) and `backend/data/hp.obo` — HPO-based canonicalization,
+  replaced 2026-09-04 by exact-text matching in `merge.py`. Superseded because
+  live-measured resolution topped out at 52% even after prompt tuning; the
+  misses were checked directly against `hp.obo` and several concepts (e.g.
+  "Rebound tenderness") don't exist under any phrasing. See
+  `docs/superpowers/specs/2026-09-04-direct-symptom-selection-design.md`.
 - `backend_reference_example/` — a reference copy at the repo root.
 - `GPU_ACCELERATION_GUIDE.md` (root and `backend/`) and `how-to-run.txt` —
   **actively misleading.** `how-to-run.txt` instructs you to download an 8 GB
