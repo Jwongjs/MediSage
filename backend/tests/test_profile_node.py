@@ -6,8 +6,8 @@ from nodes.profile_node import parse_profile, ProfileNode, clear_cache
 from knowledge.interface import Passage
 
 VALID = """[
-  {"id": 1, "description": "Right lower quadrant pain", "importance": "strong", "kind": "symptom"},
-  {"id": 2, "description": "Leukocytosis", "importance": "moderate", "kind": "lab"}
+  {"id": 1, "description": "Right lower quadrant pain", "plain_label": "pain in lower right belly", "importance": "strong", "kind": "symptom"},
+  {"id": 2, "description": "Leukocytosis", "plain_label": "high white blood cell count", "importance": "moderate", "kind": "lab"}
 ]"""
 
 
@@ -18,8 +18,16 @@ def setup_function():
 def test_parse_reads_description_importance_and_kind():
     crits = parse_profile(VALID)
     assert crits[0] == {
-        "text": "Right lower quadrant pain", "importance": "strong", "kind": "symptom",
+        "text": "Right lower quadrant pain",
+        "plain_label": "pain in lower right belly",
+        "importance": "strong",
+        "kind": "symptom",
     }
+
+
+def test_parse_defaults_missing_plain_label_to_empty_string():
+    raw = '[{"description": "X", "importance": "weak"}]'
+    assert parse_profile(raw)[0]["plain_label"] == ""
 
 
 def test_parse_tolerates_fenced_json():

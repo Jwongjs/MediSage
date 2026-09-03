@@ -59,8 +59,11 @@ symptoms
                                               +-------- your yes / no answers <-------+
 ```
 
-- **Node A, differential.** Candidate conditions from the symptom text. No
-  confidence field, and the model's ordering is discarded.
+- **Node A, differential.** Candidate conditions from the symptom text, plus a
+  one-sentence plain-language definition of each. No confidence field, and the
+  model's ordering is discarded. The definition is the one field in this app
+  that isn't sourced or verified against anything — it's the model's own
+  general knowledge, kept for its own sake rather than gated behind proof.
 - **Node B, criteria profiles.** For each candidate, its diagnostic criteria,
   each tagged `strong` / `moderate` / `weak` and typed as symptom, history, lab,
   imaging or demographic. **This node never sees the patient's text.** If it
@@ -89,6 +92,7 @@ symptoms
 | API | Python 3.11, FastAPI, LangGraph |
 | LLM | Groq, OpenAI-compatible, model set by `LLM_MODEL` |
 | Ontology | Human Phenotype Ontology (`hp.obo`, fetched at build time) |
+| Consumer definitions | LLM-generated alongside the differential, ungrounded — the one unsourced field in the app |
 | State | `MemorySaver`, in-process, deliberately not persisted |
 | Frontend | React 18, Vite, Tailwind CSS + shadcn/ui |
 | Rate limiting | `slowapi`, per IP, Redis when available and in-memory otherwise |
@@ -181,7 +185,7 @@ MediSage/
 ## Testing
 
 ```bash
-cd backend && python -m pytest tests/     # 123 tests
+cd backend && python -m pytest tests/     # 129 tests
 cd my-app  && npx tsc --noEmit            # the frontend has no test runner
 cd my-app  && npx vite build
 ```

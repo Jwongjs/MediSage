@@ -96,7 +96,10 @@ def _parse(raw: str) -> dict:
 
 
 async def _evaluate(patient_text: str, batch: list) -> dict:
-    listing = "\n".join(f'  "{c.key}": {c.label}' for c in batch)
+    # Plain-language label: shorter than the clinical name, and closer to the
+    # register patients actually write in, which is what this prompt judges
+    # against. Falls back to the clinical label for criteria with none set.
+    listing = "\n".join(f'  "{c.key}": {c.plain_label or c.label}' for c in batch)
     messages = [
         {"role": "system", "content": _SYSTEM},
         {

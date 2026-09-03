@@ -22,7 +22,9 @@ def test_view_serializes_criteria_as_dicts():
         "ranking": [], "matrix": {}, "judgements": {}, "open_questions": [], "grounded": {},
         "canonical": [Criterion("HP:1", "Fever", "symptom")],
     }
-    assert _view(state)["canonical"] == [{"key": "HP:1", "label": "Fever", "kind": "symptom"}]
+    assert _view(state)["canonical"] == [
+        {"key": "HP:1", "label": "Fever", "kind": "symptom", "plain_label": ""}
+    ]
 
 
 def test_view_never_leaks_a_confidence_or_score_field():

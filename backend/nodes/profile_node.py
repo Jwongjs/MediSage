@@ -55,6 +55,7 @@ def parse_profile(raw: str) -> list[dict]:
         kind = entry.get("kind", "symptom")
         criteria.append({
             "text": text,
+            "plain_label": (entry.get("plain_label") or "").strip(),
             "importance": importance if importance in _IMPORTANCES else "moderate",
             "kind": kind if kind in _KINDS else "symptom",
         })
@@ -80,7 +81,10 @@ async def _profile_for(diagnosis: str) -> tuple[list[dict], bool]:
                 f"Condition: {diagnosis}\n"
                 f"Relevant documents:\n{context or '(none available)'}\n\n"
                 "Output the diagnostic criteria as a JSON array. Each element:\n"
-                '{"id": <int>, "description": "<criterion>", '
+                '{"id": <int>, "description": "<criterion, clinical language>", '
+                '"plain_label": "<the SAME criterion in plain everyday words, '
+                "max 6 words, for a patient with no medical background -- keep it "
+                'as specific as the clinical version, do not generalize it away>", '
                 '"importance": "strong|moderate|weak", '
                 '"kind": "symptom|history|lab|imaging|demographic"}\n\n'
                 "importance: strong = core criterion, absence severely impacts the "

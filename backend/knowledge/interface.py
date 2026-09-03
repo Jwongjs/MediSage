@@ -1,8 +1,10 @@
 """The Project B boundary.
 
-Project A imports these two functions and nothing else from this package.
-Until Project B lands, retrieval is served from a small on-disk corpus and
-consumer explanations are unavailable.
+Project A imports `retrieve_criteria_passages` and nothing else functional
+from this package. `Passage` and `Explanation` are shared data shapes: the
+former for retrieved grounding text, the latter for a candidate's plain-
+language definition (currently produced by Node A -- see
+`nodes/differential_node.py` -- not retrieved here).
 """
 from __future__ import annotations
 
@@ -56,10 +58,3 @@ async def retrieve_criteria_passages(diagnosis_name: str, k: int = 15) -> list[P
     ]
 
 
-async def get_consumer_explanation(diagnosis_name: str) -> Explanation | None:
-    """Plain-language description of a condition from an authoritative source.
-
-    Returns None until Project B wires up MedlinePlus. Callers MUST omit the
-    field rather than substituting model-generated text.
-    """
-    return None

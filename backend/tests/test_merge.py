@@ -28,8 +28,11 @@ name: Chest tightness
 HPO = parse_obo(SAMPLE)
 
 
-def _crit(text, importance="strong", kind="symptom"):
-    return {"text": text, "importance": importance, "kind": kind}
+def _crit(text, importance="strong", kind="symptom", plain_label=None):
+    crit = {"text": text, "importance": importance, "kind": kind}
+    if plain_label is not None:
+        crit["plain_label"] = plain_label
+    return crit
 
 
 @pytest.mark.asyncio
@@ -48,6 +51,20 @@ async def test_merged_criterion_uses_hpo_primary_label():
     profiles = {"Gastroenteritis": [_crit("Belly pain")]}
     result = await merge_profiles(profiles, HPO)
     assert result.canonical[0].label == "Abdominal pain"
+
+
+@pytest.mark.asyncio
+async def test_plain_label_is_threaded_through_from_the_profile():
+    profiles = {"Appendicitis": [_crit("Abdominal pain", plain_label="belly pain")]}
+    result = await merge_profiles(profiles, HPO)
+    assert result.canonical[0].plain_label == "belly pain"
+
+
+@pytest.mark.asyncio
+async def test_plain_label_falls_back_to_the_raw_criterion_text_when_missing():
+    profiles = {"Appendicitis": [_crit("Abdominal pain")]}
+    result = await merge_profiles(profiles, HPO)
+    assert result.canonical[0].plain_label == "Abdominal pain"
 
 
 @pytest.mark.asyncio
