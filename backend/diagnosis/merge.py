@@ -1,13 +1,19 @@
 from __future__ import annotations
 
 import hashlib
-import math
+import re
 from dataclasses import dataclass
 
-from diagnosis.hpo import HpoIndex, normalize
+_ARTICLE_RE = re.compile(r"^(the|a|an)\s+")
+_PUNCT_RE = re.compile(r"[^\w\s]")
+_WS_RE = re.compile(r"\s+")
 
-ACCEPT_THRESHOLD = 0.90
-MARGIN_THRESHOLD = 0.03
+
+def normalize(text: str) -> str:
+    """Canonical form used as the lookup key for every criterion string."""
+    out = _PUNCT_RE.sub(" ", text.lower().strip())
+    out = _WS_RE.sub(" ", out).strip()
+    return _ARTICLE_RE.sub("", out).strip()
 
 
 @dataclass(frozen=True)
@@ -16,9 +22,9 @@ class Criterion:
     label: str
     kind: str
     # Patient-facing rewrite of `label`, supplied by Node B alongside the
-    # clinical description. `label` stays clinical -- it drives HPO lookup
-    # and is what the exported report shows a clinician. Falls back to the
-    # raw criterion text when Node B omits it (e.g. an older cached profile).
+    # clinical description. `label` stays clinical -- it drives display in
+    # the read-only groups and is what the exported report shows a
+    # clinician. Falls back to the raw criterion text when Node B omits it.
     plain_label: str = ""
 
 
@@ -33,66 +39,18 @@ def local_key(text: str) -> str:
     return f"LOCAL:{digest}"
 
 
-def _cosine(a: list[float], b: list[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
-    na = math.sqrt(sum(x * x for x in a))
-    nb = math.sqrt(sum(y * y for y in b))
-    if na == 0 or nb == 0:
-        return 0.0
-    return dot / (na * nb)
+async def merge_profiles(profiles: dict[str, list[dict]]) -> MergeResult:
+    """Dedupe raw per-diagnosis criteria into one canonical list plus a
+    diagnosis -> key -> importance matrix, keyed on exact normalized text.
 
-
-async def _resolve(text: str, kind: str, hpo: HpoIndex, embed_fn, hpo_vectors):
-    """Return (key, label) for one criterion string."""
-    if kind != "symptom":
-        return local_key(text), text
-
-    hit = hpo.lookup(text)
-    if hit:
-        return hit, hpo.label(hit)
-
-    if embed_fn is None or not hpo_vectors:
-        return local_key(text), text
-
-    vec = await embed_fn(text)
-    scored = sorted(
-        ((_cosine(vec, v), hp_id) for hp_id, v in hpo_vectors.items()),
-        reverse=True,
-    )
-    if not scored:
-        return local_key(text), text
-
-    top_score, top_id = scored[0]
-    runner_up = scored[1][0] if len(scored) > 1 else 0.0
-    # Both gates must hold. The margin is what keeps "chest pain" and
-    # "chest tightness" — near-identical vectors, distinct concepts — apart.
-    if top_score >= ACCEPT_THRESHOLD and (top_score - runner_up) >= MARGIN_THRESHOLD:
-        return top_id, hpo.label(top_id)
-
-    return local_key(text), text
-
-
-async def _build_hpo_vectors(profiles, hpo: HpoIndex, embed_fn):
-    """Embed only HPO labels, and only when a fallback will actually be needed."""
-    if embed_fn is None:
-        return {}
-    needs_fallback = any(
-        c.get("kind", "symptom") == "symptom" and hpo.lookup(c.get("text", "")) is None
-        for crits in profiles.values()
-        for c in crits
-    )
-    if not needs_fallback:
-        return {}
-    return {hp_id: await embed_fn(label) for hp_id, label in hpo.terms()}
-
-
-async def merge_profiles(
-    profiles: dict[str, list[dict]],
-    hpo: HpoIndex,
-    embed_fn=None,
-) -> MergeResult:
-    hpo_vectors = await _build_hpo_vectors(profiles, hpo, embed_fn)
-
+    No ontology, no embeddings: two criteria merge only when their
+    normalized text is identical. This is a correctness fix, not a cost
+    optimization -- without it, the same fact evaluated once per diagnosis
+    that lists it could plausibly return a different verdict each time
+    (autoregressive generation gives no guarantee of self-consistency for
+    a repeated near-identical ask), corrupting the ranking tally, not just
+    the display.
+    """
     canonical: dict[str, Criterion] = {}
     matrix: dict[str, dict[str, str]] = {d: {} for d in profiles}
 
@@ -105,12 +63,14 @@ async def merge_profiles(
             importance = crit.get("importance", "moderate")
             plain_label = (crit.get("plain_label") or "").strip() or text
 
-            key, label = await _resolve(text, kind, hpo, embed_fn, hpo_vectors)
+            key = local_key(text)
+            # First writer wins: a criterion's own text is its label
+            # wherever it's first seen, regardless of how later diagnoses
+            # happen to phrase the same normalized concept.
             canonical.setdefault(
-                key, Criterion(key=key, label=label, kind=kind, plain_label=plain_label)
+                key, Criterion(key=key, label=text, kind=kind, plain_label=plain_label)
             )
 
-            # A diagnosis listing the same concept twice keeps the stronger call.
             existing = matrix[diagnosis].get(key)
             if existing is None or _rank_importance(importance) > _rank_importance(existing):
                 matrix[diagnosis][key] = importance

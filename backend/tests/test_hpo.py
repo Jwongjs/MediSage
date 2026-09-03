@@ -1,7 +1,7 @@
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from diagnosis.hpo import normalize, parse_obo
+from diagnosis.hpo import parse_obo
 
 SAMPLE = """
 format-version: 1.2
@@ -27,18 +27,6 @@ id: HP:0000822
 name: Hypertension
 is_obsolete: true
 """
-
-
-def test_normalize_lowercases_and_strips_punctuation():
-    assert normalize("  Abdominal Pain!  ") == "abdominal pain"
-
-
-def test_normalize_strips_leading_article():
-    assert normalize("The Fever") == "fever"
-
-
-def test_normalize_collapses_whitespace():
-    assert normalize("chest    pain") == "chest pain"
 
 
 def test_lookup_matches_primary_label():

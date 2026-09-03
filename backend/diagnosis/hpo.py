@@ -4,19 +4,11 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-_ARTICLE_RE = re.compile(r"^(the|a|an)\s+")
-_PUNCT_RE = re.compile(r"[^\w\s]")
-_WS_RE = re.compile(r"\s+")
+from diagnosis.merge import normalize
+
 _SYNONYM_RE = re.compile(r'^synonym:\s*"([^"]*)"')
 
 _DEFAULT_PATH = Path(__file__).resolve().parent.parent / "data" / "hp.obo"
-
-
-def normalize(text: str) -> str:
-    """Canonical form used as the lookup key for every criterion string."""
-    out = _PUNCT_RE.sub(" ", text.lower().strip())
-    out = _WS_RE.sub(" ", out).strip()
-    return _ARTICLE_RE.sub("", out).strip()
 
 
 _PROSE_LEAD_RE = re.compile(
