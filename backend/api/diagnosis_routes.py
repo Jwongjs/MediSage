@@ -2,21 +2,26 @@ from fastapi import APIRouter, Body, Form, HTTPException, Request, Response
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
 import uuid
-import json
 import logging
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from config import settings
+from diagnosis.finalize import apply_checked_symptoms
+from diagnosis.ranking import rank
+
 diagnosis_router = APIRouter()
 logger = logging.getLogger(__name__)
-limiter = Limiter(key_func=get_remote_address)
-
-ANSWER_TO_STATUS = {
-    "yes": "supported",
-    "no": "contradicted",
-    "unsure": "not_mentioned",
-}
+# in_memory_fallback_enabled: slowapi catches a Redis connection error at
+# request time and switches to in-process counting rather than raising -
+# without it, a Redis outage would 500 every rate-limited request instead of
+# just degrading fairness across replicas.
+limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri=settings.REDIS_URL,
+    in_memory_fallback_enabled=True,
+)
 
 
 def _view(state: dict) -> dict:
@@ -41,7 +46,6 @@ def _view(state: dict) -> dict:
         "canonical": canonical,
         "matrix": state.get("matrix", {}),
         "judgements": state.get("judgements", {}),
-        "open_questions": state.get("open_questions", []),
         "grounded": state.get("grounded", {}),
         "explanations": explanations,
         "summary": state.get("summary"),
@@ -55,7 +59,6 @@ def _step(state: dict, action: str) -> dict:
         "stage": state.get("stage"),
         "ranking": [list(group) for group in (state.get("ranking") or [])],
         "not_evaluated": list(state.get("not_evaluated") or []),
-        "open_questions": list(state.get("open_questions") or []),
     }
 
 
@@ -87,51 +90,15 @@ async def start_diagnosis(
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@diagnosis_router.post("/diagnosis/{session_id}/answers")
-@limiter.limit("30/minute")
-async def submit_answers(request: Request, session_id: str, answers: dict = Body(...)):
-    """answers: {criterion_key: "yes" | "no" | "unsure"}"""
-    config = {"configurable": {"thread_id": session_id}}
-
-    try:
-        graph = request.app.state.diagnosis_graph
-        snapshot = await graph.aget_state(config)
-        if not snapshot or not snapshot.values:
-            raise HTTPException(status_code=404, detail="Session not found")
-
-        judgements = dict(snapshot.values.get("judgements") or {})
-        for key, answer in answers.items():
-            status = ANSWER_TO_STATUS.get(answer)
-            if status is None:
-                continue
-            judgements[key] = {
-                "status": status,
-                "evidence": "Reported by patient" if status != "not_mentioned" else None,
-                "source": "patient_answer",
-            }
-
-        await graph.aupdate_state(config, {"judgements": judgements, "answers": answers})
-
-        from graphs.diagnosis_workflow import MergeRankNode
-        refreshed = await MergeRankNode()(dict(snapshot.values) | {"judgements": judgements})
-        steps = list(snapshot.values.get("steps") or []) + [_step(refreshed, "answers")]
-        await graph.aupdate_state(config, {
-            "ranking": refreshed["ranking"],
-            "open_questions": refreshed["open_questions"],
-            "steps": steps,
-        })
-
-        return {"success": True, "session_id": session_id, "result": _view(refreshed)}
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.error("Answer submission failed: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc))
-
-
 @diagnosis_router.post("/diagnosis/{session_id}/finalize")
 @limiter.limit("20/minute")
-async def finalize_diagnosis(request: Request, session_id: str):
+async def finalize_diagnosis(
+    request: Request, session_id: str, body: dict = Body(default={})
+):
+    """body: {"checked": [criterion_key, ...]} -- every non-contradicted
+    key the user left checked on the results page. Server re-derives the
+    authoritative judgements and ranking from this; the client's own live
+    tally is display-only and never trusted for what gets persisted."""
     config = {"configurable": {"thread_id": session_id}}
 
     try:
@@ -139,6 +106,19 @@ async def finalize_diagnosis(request: Request, session_id: str):
         snapshot = await graph.aget_state(config)
         if not snapshot or not snapshot.values:
             raise HTTPException(status_code=404, detail="Session not found")
+
+        checked = set(body.get("checked") or [])
+        canonical = snapshot.values.get("canonical", [])
+        judgements = snapshot.values.get("judgements", {}) or {}
+        reconciled = apply_checked_symptoms(canonical, judgements, checked)
+
+        matrix = snapshot.values.get("matrix", {})
+        not_evaluated = set(snapshot.values.get("not_evaluated", []))
+        candidates = snapshot.values.get("candidates", [])
+        ranking_matrix = {d: matrix[d] for d in candidates if d not in not_evaluated and matrix.get(d)}
+        ranking = rank(ranking_matrix, reconciled)
+
+        await graph.aupdate_state(config, {"judgements": reconciled, "ranking": ranking})
 
         result = await graph.ainvoke(None, config)
         result["steps"] = list(result.get("steps") or []) + [_step(result, "finalize")]
@@ -202,8 +182,7 @@ async def export_report_file(
 @diagnosis_router.get("/debug/routes")
 async def debug_routes():
     return {"message": "Routes working", "endpoints": [
-        "/diagnosis/start", "/diagnosis/{session_id}/answers",
-        "/diagnosis/{session_id}/finalize",
+        "/diagnosis/start", "/diagnosis/{session_id}/finalize",
         "/patient/export_report", "/health",
     ]}
 
