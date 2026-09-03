@@ -8,7 +8,6 @@ from diagnosis.hpo import HpoIndex, normalize
 
 ACCEPT_THRESHOLD = 0.90
 MARGIN_THRESHOLD = 0.03
-CLUSTER_THRESHOLD = 0.93
 
 
 @dataclass(frozen=True)
@@ -16,6 +15,11 @@ class Criterion:
     key: str
     label: str
     kind: str
+    # Patient-facing rewrite of `label`, supplied by Node B alongside the
+    # clinical description. `label` stays clinical -- it drives HPO lookup
+    # and is what the exported report shows a clinician. Falls back to the
+    # raw criterion text when Node B omits it (e.g. an older cached profile).
+    plain_label: str = ""
 
 
 @dataclass(frozen=True)
@@ -99,9 +103,12 @@ async def merge_profiles(
                 continue
             kind = crit.get("kind", "symptom")
             importance = crit.get("importance", "moderate")
+            plain_label = (crit.get("plain_label") or "").strip() or text
 
             key, label = await _resolve(text, kind, hpo, embed_fn, hpo_vectors)
-            canonical.setdefault(key, Criterion(key=key, label=label, kind=kind))
+            canonical.setdefault(
+                key, Criterion(key=key, label=label, kind=kind, plain_label=plain_label)
+            )
 
             # A diagnosis listing the same concept twice keeps the stronger call.
             existing = matrix[diagnosis].get(key)

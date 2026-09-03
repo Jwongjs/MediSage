@@ -4,6 +4,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 import re
 
 from nodes.medical_report_node import MedicalReportNode
+from knowledge.interface import Explanation
 
 
 def _state(**overrides):
@@ -81,6 +82,32 @@ def test_not_evaluated_candidates_appear_separately_and_unranked():
     assert not_evaluated_idx > ranked_idx
     assert "CONSIDERED BUT NOT ASSESSED" in text
     assert "not ranked" in text.lower()
+
+
+def test_export_includes_each_condition_definition_from_a_dataclass_explanation():
+    node = MedicalReportNode()
+    state = _state(
+        matrix={
+            "Pneumonia": {"HP:0001945": "strong"},
+            "Bronchitis": {"HP:0001945": "strong"},
+        },
+        ranking=[["Pneumonia", "Bronchitis"]],
+        explanations={
+            "Pneumonia": Explanation(text="An infection that inflames the air sacs in one or both lungs.", source="AI-generated", url=""),
+            "Bronchitis": None,
+        },
+    )
+    text = node._generate_text_export(state)
+
+    assert "An infection that inflames the air sacs" in text
+
+
+def test_export_omits_definition_when_explanation_is_missing():
+    node = MedicalReportNode()
+    text = node._generate_text_export(_state())
+
+    # No explanations key at all in state -- must not raise, must not print anything odd.
+    assert "None" not in text
 
 
 def test_export_contains_no_confidence_or_percentages():

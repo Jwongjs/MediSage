@@ -122,6 +122,36 @@ async def test_node_drops_patient_answers_for_criteria_no_longer_canonical():
     assert set(state["judgements"]) == {c.key for c in CRITS}
 
 
+async def test_prompt_uses_plain_label_when_present():
+    crits = [Criterion("HP:0002027", "Abdominal pain", "symptom", plain_label="belly pain")]
+    captured = []
+
+    async def capture(messages, **kw):
+        captured.append(messages)
+        return "{}"
+
+    with patch("nodes.evidence_node.llm_client") as client:
+        client.complete = AsyncMock(side_effect=capture)
+        await EvidenceNode()({"patient_text": TEXT, "canonical": crits})
+
+    prompt = captured[0][1]["content"]
+    assert "belly pain" in prompt
+    assert "Abdominal pain" not in prompt
+
+
+async def test_prompt_falls_back_to_clinical_label_without_a_plain_label():
+    async def capture(messages, **kw):
+        captured.append(messages)
+        return "{}"
+
+    captured = []
+    with patch("nodes.evidence_node.llm_client") as client:
+        client.complete = AsyncMock(side_effect=capture)
+        await EvidenceNode()({"patient_text": TEXT, "canonical": CRITS})
+
+    assert "Abdominal pain" in captured[0][1]["content"]
+
+
 async def test_node_makes_no_llm_call_when_there_are_no_criteria():
     with patch("nodes.evidence_node.llm_client") as client:
         client.complete = AsyncMock(return_value="{}")

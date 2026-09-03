@@ -20,7 +20,7 @@ network calls.
 ```
 POST /diagnosis/start
    │
-   ├─ Node A  differential ............. LLM, 1 call
+   ├─ Node A  differential ............. LLM, 1 call (candidates + plain-language definitions)
    ├─ Node B  criteria profiles ........ LLM, N calls, parallel, cached
    ├─ merge_rank_pre ................... deterministic  (builds the criterion set)
    ├─ Node C  evidence ................. LLM, 1 call (chunked above 40 criteria)
@@ -31,6 +31,17 @@ POST /diagnosis/{id}/answers  → re-runs merge_rank out of band, rewrites state
 POST /diagnosis/{id}/finalize → resumes into summary
 POST /patient/export_report   → renders the evidence table as PDF or Word
 ```
+
+Node A returns `{name, definition}` per candidate in one JSON call — zero
+extra LLM calls for definitions. **The definition is ungrounded**: the
+model's own general knowledge, not a retrieved or verified source, unlike
+everything else this pipeline shows the user. Two earlier designs were tried
+and superseded before landing here (raw-extracted MedlinePlus text, then
+RAG-grounded LLM synthesis from a retrieved passage) — both correctly kept
+the field sourced-or-omitted, but the current design deliberately trades that
+guarantee for simplicity and zero added latency/cost. See §6 for the
+consequence. `summary` reuses the same per-session result for the top
+diagnosis instead of asking again.
 
 `interrupt_before=["summary"]` is why `/answers` runs `MergeRankNode` directly
 rather than resuming the graph: a plain resume would execute only `summary` and
@@ -45,8 +56,9 @@ never written to disk.
 |---|---|
 | `patient_text` | the symptom narrative |
 | `candidates` | Node A output |
+| `explanations` | `diagnosis name → Explanation \| None`, from MedlinePlus |
 | `profiles` / `grounded` | Node B output, per candidate |
-| `canonical` | merged `Criterion(key, label, kind)` list |
+| `canonical` | merged `Criterion(key, label, plain_label, kind)` list |
 | `matrix` | `diagnosis → criterion key → importance` |
 | `judgements` | `criterion key → {status, evidence, source}` |
 | `ranking` | `list[list[str]]` — inner lists are ties |
@@ -106,11 +118,11 @@ the criterion.
 | `backend/diagnosis/hpo.py` | HPO index; `normalize`, `strip_prose`, `lookup` |
 | `backend/diagnosis/merge.py` | canonicalisation, the diagnosis×criterion matrix |
 | `backend/diagnosis/ranking.py` | lexicographic ranking, tie groups, `split_rank` |
-| `backend/knowledge/interface.py` | retrieval seam — the only import surface |
-| `backend/nodes/differential_node.py` | Node A |
+| `backend/knowledge/interface.py` | corpus retrieval seam (Node B grounding), no LLM — the only import surface |
+| `backend/nodes/differential_node.py` | Node A — candidates + ungrounded plain-language definitions |
 | `backend/nodes/profile_node.py` | Node B + process-wide profile cache |
 | `backend/nodes/evidence_node.py` | Node C + deterministic reconciliation |
-| `backend/nodes/summary_node.py` | severity, specialist, cited explanation |
+| `backend/nodes/summary_node.py` | severity, specialist, reused Node A explanation |
 | `backend/nodes/medical_report_node.py` | PDF / Word / text export only |
 | `backend/graphs/diagnosis_workflow.py` | graph wiring, `MergeRankNode` |
 | `backend/api/diagnosis_routes.py` | every route |
@@ -173,7 +185,7 @@ also what a client sees after a restart, since state is in-process.
 ## 5. Testing
 
 ```bash
-cd backend && python -m pytest tests/     # 123 tests
+cd backend && python -m pytest tests/     # 129 tests
 cd my-app  && npx tsc --noEmit && npx vite build
 ```
 
@@ -202,9 +214,27 @@ accuracy metric.
   prompt change, not embeddings.
 - **The embedding fallback is disabled.** `merge.py` would embed all 19,836 HPO
   labels serially per call. Needs precomputed vectors first.
-- `CLUSTER_THRESHOLD = 0.93` is defined and unimplemented; measured duplicates
-  sit at 0.928 and 0.871, so the value is mis-tuned.
 - **The OPQRST alternative path (spec §12.3) was never built.**
+- **`plain_label` has no independent quality check.** It is Node B's own
+  rewrite of its own `description`, not a separately-graded output, so a
+  plain label that quietly loses the clinical specificity of its source
+  criterion (e.g. broadens "McBurney's point tenderness" into generic
+  "belly pain") would not be caught by anything in the pipeline today.
+- **The consumer definition is fully ungrounded LLM output — the one field in
+  this pipeline with no sourcing, no verification, and no structural check of
+  any kind.** Node A is asked for a plain-language definition of each
+  candidate from its own general knowledge; nothing retrieves, cites, or
+  checks it. This is a real, deliberate step down in reliability from
+  everything else the system shows a user: Node B's criteria are at least
+  attributable to a candidate's medical literature (when the corpus has
+  coverage), and Node C's evidence must quote the patient's own text
+  verbatim or get downgraded. The definition has neither. Two prior designs
+  (raw MedlinePlus extraction, then RAG-grounded LLM synthesis from a
+  retrieved MedlinePlus passage) kept it sourced-or-omitted; both were
+  superseded in favour of this simpler, zero-extra-call version. If asked
+  in an interview "how do you know this isn't hallucinated" — the honest
+  answer is "I don't, for this one field, and here's what I gave up to get
+  there and why (§1)."
 
 ---
 

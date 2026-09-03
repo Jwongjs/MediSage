@@ -113,14 +113,12 @@ export const FinalReportPage: React.FC<FinalReportPageProps> = ({
             <div className="bg-secondary/60 rounded-lg p-4">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">What this means</p>
               <p className="text-sm leading-relaxed">{summary.user_explanation}</p>
-              {summary.explanation_source && (
+              {summary.explanation_source && summary.explanation_url && (
                 <p className="text-xs text-muted-foreground mt-2.5">
-                  Source: {summary.explanation_url ? (
-                    <a href={summary.explanation_url} target="_blank" rel="noreferrer"
+                  Source: <a href={summary.explanation_url} target="_blank" rel="noreferrer"
                       className="text-primary underline underline-offset-2 inline-flex items-center gap-1">
                       {summary.explanation_source}<ExternalLink className="h-3 w-3" />
                     </a>
-                  ) : summary.explanation_source}
                 </p>
               )}
             </div>
@@ -142,9 +140,16 @@ export const FinalReportPage: React.FC<FinalReportPageProps> = ({
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Alternative conditions considered</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-3">
             {alts.map(name => (
-              <div key={name} className="text-sm font-medium py-2 border-b last:border-0">{name}</div>
+              <div key={name} className="py-2 border-b last:border-0">
+                <p className="text-sm font-medium">{name}</p>
+                {view.explanations[name]?.text && (
+                  <p className="text-xs text-muted-foreground leading-relaxed mt-1">
+                    {view.explanations[name]!.text}
+                  </p>
+                )}
+              </div>
             ))}
           </CardContent>
         </Card>
@@ -157,7 +162,7 @@ export const FinalReportPage: React.FC<FinalReportPageProps> = ({
             <CardTitle className="text-base">Take this with you</CardTitle>
           </div>
           <CardDescription>
-            Nothing from this session is stored — the file you download is the only copy.
+            Download the AI-assisted medical differential report from this session for you or your healthcare provider's reference.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -201,10 +206,6 @@ export const FinalReportPage: React.FC<FinalReportPageProps> = ({
       <Button variant="outline" onClick={handleReset} className="gap-2 w-full">
         <RotateCcw className="h-4 w-4" />New diagnosis
       </Button>
-
-      <p className="text-xs text-center text-muted-foreground">
-        AI-generated for informational purposes only. Not a medical diagnosis. Always consult a qualified healthcare professional.
-      </p>
     </div>
   );
 };

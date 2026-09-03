@@ -91,8 +91,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="AI Medical Diagnosis Assistant",
-    description="Medical AI system with LangGraph workflow",
+    title="MediSage API",
+    description="AI-assisted medical differential and evidence report for pre-consultation triage. Not a certified medical device.",
     version="2.0.0",
     lifespan=lifespan,
 )
@@ -116,7 +116,7 @@ app.include_router(diagnosis_router)
 @app.get("/")
 async def root():
     return {
-        "message": "MediSage evidence-based differential API",
+        "message": "MediSage evidence-based medical differential API",
         "version": "2.0.0",
         "endpoints": {
             "health": "/health",

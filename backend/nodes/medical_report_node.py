@@ -11,6 +11,17 @@ from io import BytesIO
 
 logger = logging.getLogger(__name__)
 
+
+def _explanation_text(explanation) -> str | None:
+    """Explanation may be a dataclass instance (raw graph state) or a dict
+    (already-serialized state) -- same dual-type tolerance as `canonical`
+    below."""
+    if explanation is None:
+        return None
+    text = explanation["text"] if isinstance(explanation, dict) else explanation.text
+    return text or None
+
+
 class MedicalReportNode:
     """Renders a finished diagnosis state as a downloadable document.
 
@@ -58,12 +69,18 @@ class MedicalReportNode:
                          for c in state.get("canonical", [])}
             judgements = state.get("judgements", {})
             matrix = state.get("matrix", {})
+            explanations = state.get("explanations", {})
 
             for group in state.get("ranking", []):
                 tied = len(group) > 1
                 for diagnosis in group:
                     heading_text = f"{diagnosis}  (tied)" if tied else diagnosis
                     story.append(Paragraph(heading_text, styles['Heading2']))
+
+                    definition = _explanation_text(explanations.get(diagnosis))
+                    if definition:
+                        story.append(Paragraph(definition, styles['Normal']))
+                        story.append(Spacer(1, 6))
 
                     for status, heading in (
                         ("supported", "Supported by"),
@@ -146,12 +163,17 @@ class MedicalReportNode:
                          for c in state.get("canonical", [])}
             judgements = state.get("judgements", {})
             matrix = state.get("matrix", {})
+            explanations = state.get("explanations", {})
 
             for group in state.get("ranking", []):
                 tied = len(group) > 1
                 for diagnosis in group:
                     heading_text = f"{diagnosis}  (tied)" if tied else diagnosis
                     doc.add_heading(heading_text, level=1)
+
+                    definition = _explanation_text(explanations.get(diagnosis))
+                    if definition:
+                        doc.add_paragraph(definition)
 
                     for status, heading in (
                         ("supported", "Supported by"),
@@ -221,12 +243,17 @@ class MedicalReportNode:
                      for c in state.get("canonical", [])}
         judgements = state.get("judgements", {})
         matrix = state.get("matrix", {})
+        explanations = state.get("explanations", {})
 
         for group in state.get("ranking", []):
             tied = len(group) > 1
             for diagnosis in group:
                 lines.append(f"{diagnosis}{'  (tied)' if tied else ''}")
                 lines.append("-" * 60)
+                definition = _explanation_text(explanations.get(diagnosis))
+                if definition:
+                    lines.append(definition)
+                    lines.append("")
                 for status, heading in (
                     ("supported", "Supported by"),
                     ("contradicted", "Contradicted by"),

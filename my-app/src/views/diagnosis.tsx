@@ -33,7 +33,7 @@ const DiagnosisFunction: React.FC = () => {
           onReset={reset}
         />
         <p className="text-xs text-center text-muted-foreground">
-          MediSage provides AI-assisted guidance for educational purposes and does not replace professional medical care.
+          MediSage provides AI-assisted guidance for educational/informational purposes only. Not a medical diagnosis. Always consult a qualified healthcare professional.
         </p>
       </div>
     </PageLayout>

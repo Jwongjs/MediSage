@@ -1,9 +1,7 @@
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from knowledge.interface import (
-    Passage, Explanation, retrieve_criteria_passages, get_consumer_explanation,
-)
+from knowledge.interface import Passage, retrieve_criteria_passages
 
 
 async def test_retrieve_returns_a_list():
@@ -23,7 +21,3 @@ async def test_retrieve_returns_passage_objects():
 
 async def test_unknown_diagnosis_returns_empty_not_error():
     assert await retrieve_criteria_passages("Zzzznotacondition") == []
-
-
-async def test_consumer_explanation_returns_none_until_project_b():
-    assert await get_consumer_explanation("Appendicitis") is None

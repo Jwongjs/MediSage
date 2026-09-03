@@ -5,11 +5,12 @@ from typing_extensions import TypedDict
 # it as a TypedDict here: two types with one name, where state holds the
 # dataclass, is how attribute access starts failing at runtime.
 from diagnosis.merge import Criterion
+from knowledge.interface import Explanation
 
 Stage = str  # started | differential_complete | profiles_complete |
              # evidence_complete | ranked | awaiting_answers | complete
 
-__all__ = ["Criterion", "Judgement", "Summary", "DiagnosisState", "Stage"]
+__all__ = ["Criterion", "Explanation", "Judgement", "Summary", "DiagnosisState", "Stage"]
 
 
 class Judgement(TypedDict):
@@ -21,7 +22,7 @@ class Judgement(TypedDict):
 class Summary(TypedDict, total=False):
     severity: str                    # mild|moderate|severe|critical|unknown
     specialist_recommendation: str
-    user_explanation: str | None     # from MedlinePlus, omitted if unavailable
+    user_explanation: str | None     # Node A's ungrounded definition of the top candidate, omitted if unavailable
     explanation_source: str | None
     explanation_url: str | None
 
@@ -34,6 +35,7 @@ class DiagnosisState(TypedDict, total=False):
     candidates: list[str]
     profiles: dict[str, list[dict]]
     grounded: dict[str, bool]
+    explanations: dict[str, Explanation | None]
 
     canonical: list[Criterion]
     matrix: dict[str, dict[str, str]]

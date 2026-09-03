@@ -54,6 +54,13 @@ export const EvidenceResultsPage: React.FC<Props> = ({
         </Alert>
       )}
 
+      <p className="text-xs text-muted-foreground leading-relaxed px-1">
+        <span className="font-medium text-foreground">Strong</span>,{' '}
+        <span className="font-medium text-foreground">moderate</span> and{' '}
+        <span className="font-medium text-foreground">weak</span> show how central
+        each detail/symptom is to that condition.
+      </p>
+
       <div className="space-y-4">
         {shown.map(c => (
           <CandidateCard
@@ -64,7 +71,7 @@ export const EvidenceResultsPage: React.FC<Props> = ({
             criteria={view.matrix[c.name] ?? {}}
             canonical={view.canonical}
             judgements={view.judgements}
-            grounded={view.grounded[c.name] === true}
+            explanation={view.explanations[c.name] ?? null}
           />
         ))}
       </div>
@@ -85,7 +92,7 @@ export const EvidenceResultsPage: React.FC<Props> = ({
                   criteria={view.matrix[c.name] ?? {}}
                   canonical={view.canonical}
                   judgements={view.judgements}
-                  grounded={view.grounded[c.name] === true}
+                  explanation={view.explanations[c.name] ?? null}
                 />
               ))}
             </AccordionContent>
@@ -100,7 +107,7 @@ export const EvidenceResultsPage: React.FC<Props> = ({
             Considered, not assessed
           </p>
           <p className="text-xs text-muted-foreground leading-relaxed mb-2.5">
-            These conditions came up but could not be evaluated against what you have told us —
+            These conditions came up but could not be evaluated against what you have told us,
             there was not enough to build a criteria profile for them. That is different from
             ranking last: they were not scored at all, so their absence above is not a judgement
             against them.

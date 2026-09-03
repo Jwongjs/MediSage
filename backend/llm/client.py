@@ -25,7 +25,7 @@ class LLMClient:
         # lazy init the module imports cleanly and only fails if actually called.
         if self._llm is None:
             self._llm = ChatGroq(
-                model=os.getenv("LLM_MODEL", "llama-3.3-70b-versatile"),
+                model=os.getenv("LLM_MODEL"),
                 groq_api_key=os.getenv("LLM_API_KEY") or os.getenv("GROQ_API_KEY"),
             )
         return self._llm

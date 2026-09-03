@@ -26,6 +26,10 @@ def _view(state: dict) -> dict:
     No numeric score of any kind crosses this boundary.
     """
     canonical = [asdict(c) if is_dataclass(c) else dict(c) for c in state.get("canonical", [])]
+    explanations = {
+        name: (asdict(e) if is_dataclass(e) else e)
+        for name, e in (state.get("explanations") or {}).items()
+    }
     return {
         "stage": state.get("stage"),
         "patient_text": state.get("patient_text", ""),
@@ -39,6 +43,7 @@ def _view(state: dict) -> dict:
         "judgements": state.get("judgements", {}),
         "open_questions": state.get("open_questions", []),
         "grounded": state.get("grounded", {}),
+        "explanations": explanations,
         "summary": state.get("summary"),
     }
 

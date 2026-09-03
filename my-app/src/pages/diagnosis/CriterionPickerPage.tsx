@@ -22,6 +22,17 @@ const OPTIONS: { value: Answer; label: string }[] = [
 
 const MAX_QUESTIONS = 8;
 
+// A criterion label is sometimes itself a negation (e.g. "No nausea or
+// vomiting" -- a real diagnostic criterion, not a typo). Wrapping that in
+// "Do you have {label}?" produces a double negative ("Do you have no nausea
+// or vomiting?") that's confusing to answer. Answering "Yes" still means the
+// criterion holds, exactly as for a positive label -- only the wording
+// changes, not the yes/no mapping.
+function questionFor(label: string): string {
+  const negated = label.match(/^no\s+(.+)$/i);
+  return negated ? `Are you free of ${negated[1]}?` : `Do you have ${label}?`;
+}
+
 export const CriterionPickerPage: React.FC<Props> = ({ view, loading, onSubmit, onSkip }) => {
   const [answers, setAnswers] = useState<Record<string, Answer>>({});
   // Local in-flight latch. The server reads the session, recomputes, then
@@ -51,7 +62,7 @@ export const CriterionPickerPage: React.FC<Props> = ({ view, loading, onSubmit, 
           </div>
           <CardDescription>
             These are the details that best separate the conditions being considered.
-            Answer only what you know — “Not sure” leaves it open.
+            Answer only what you know, “Not sure” will leave it open.
           </CardDescription>
         </CardHeader>
 
@@ -72,7 +83,7 @@ export const CriterionPickerPage: React.FC<Props> = ({ view, loading, onSubmit, 
               <div key={key} className="space-y-2">
                 <Label className="text-sm leading-relaxed">
                   <span className="text-muted-foreground font-mono mr-1.5">{i + 1}.</span>
-                  Do you have {byKey.get(key)?.label.toLowerCase() ?? key}?
+                  {questionFor((byKey.get(key)?.plain_label || byKey.get(key)?.label || key).toLowerCase())}
                 </Label>
                 <RadioGroup
                   value={answers[key] ?? 'unsure'}
