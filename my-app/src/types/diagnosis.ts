@@ -10,6 +10,13 @@ export interface Criterion {
   key: string;
   label: string;
   kind: CriterionKind;
+  plain_label: string;
+}
+
+export interface Explanation {
+  text: string;
+  source: string;
+  url: string;
 }
 
 export interface Judgement {
@@ -43,6 +50,7 @@ export interface DiagnosisView {
   judgements: Record<string, Judgement>;
   open_questions: string[];
   grounded: Record<string, boolean>;
+  explanations: Record<string, Explanation | null>;
   summary: Summary | null;
 }
 

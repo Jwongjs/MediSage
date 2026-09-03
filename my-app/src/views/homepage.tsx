@@ -7,21 +7,22 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import {
-  Activity, Brain, FileText, ShieldCheck,
+  Activity, Brain, FileText, ListChecks,
   ChevronRight, Clock, ArrowRight, Stethoscope,
+  MessageCircle, BookOpen,
 } from 'lucide-react';
 
 const FEATURES = [
   {
     icon: Brain,
-    title: 'AI Differential Diagnosis',
-    description: 'Describe your symptoms and receive a ranked differential showing which criteria each condition is supported or contradicted by.',
+    title: 'AI-Ranked Medical Differential',
+    description: 'Describe your symptoms and receive a ranked medical differential showing which criteria each condition is supported or contradicted by.',
     accent: 'text-primary bg-primary/5',
   },
   {
-    icon: ShieldCheck,
-    title: 'No Account, Nothing Stored',
-    description: 'There is no sign-up and no database. A session lives only while you have it open — the report you download is the only copy.',
+    icon: ListChecks,
+    title: 'Built to Avoid Bias',
+    description: 'The criteria for each condition are worked out before your symptoms are even considered, then checked against what you described, so nothing is bent to fit the answer.',
     accent: 'text-accent bg-accent/5',
   },
   {
@@ -32,10 +33,28 @@ const FEATURES = [
   },
 ] as const;
 
+const INTRO_POINTS = [
+  {
+    icon: MessageCircle,
+    title: 'No medical degree required',
+    body: 'Describe how you feel in plain words. MediSage translates it into clinical terms so you never have to look one up.',
+  },
+  {
+    icon: BookOpen,
+    title: 'Built to inform, not to diagnose',
+    body: 'This is an educational first read on your symptoms, not a verdict. It helps you ask better questions, not skip a doctor.',
+  },
+  {
+    icon: Stethoscope,
+    title: 'Check-up ready',
+    body: 'Bring the report to your appointment. It suggests how urgent things might be and a specialist worth seeing, so your doctor starts from what you found, not from zero.',
+  },
+] as const;
+
 const STEPS = [
   { n: '01', title: 'Describe symptoms',      body: 'Natural language. The AI validates and flags vague or unsafe descriptions.' },
-  { n: '02', title: 'Check observable signs', body: 'Sign prompts targeted to your differential, then follow-up questions that separate the candidates.' },
-  { n: '03', title: 'Download your report',   body: 'A report with the differential, the evidence behind it, severity, and next steps.' },
+  { n: '02', title: 'Check observable signs', body: 'Sign prompts targeted to your medical differential, then follow-up questions that separate the candidates.' },
+  { n: '03', title: 'Download your report',   body: 'A report with the medical differential, the evidence behind it, severity, and next steps.' },
 ] as const;
 
 const Homepage: React.FC = () => {
@@ -69,21 +88,14 @@ const Homepage: React.FC = () => {
 
         <div className="container mx-auto max-w-6xl px-4 pt-20 pb-28 md:pt-28 relative z-10">
           <div className="max-w-2xl">
-            <Badge
-              variant="outline"
-              className="mb-6 text-xs font-medium border-primary/25 bg-primary/10 text-primary gap-1.5 animate-fade-in-up"
-              style={{ animationDelay: '0ms' }}
-            >
-              <Activity className="h-3 w-3" />AI-powered medical assistant
-            </Badge>
             <h1
-              className="font-display text-4xl md:text-5xl lg:text-[3.5rem] font-normal leading-[1.1] mb-2 text-foreground animate-fade-in-up"
+              className="font-display text-4xl md:text-5xl lg:text-[3.5rem] font-medium leading-[1.1] mb-2 text-foreground animate-fade-in-up"
               style={{ animationDelay: '80ms' }}
             >
               Medical clarity,
             </h1>
             <h1
-              className="font-display text-4xl md:text-5xl lg:text-[3.5rem] font-normal italic leading-[1.1] mb-6 text-primary animate-fade-in-up"
+              className="font-display text-4xl md:text-5xl lg:text-[3.5rem] font-medium italic leading-[1.1] mb-6 text-primary animate-fade-in-up"
               style={{ animationDelay: '160ms' }}
             >
               powered by AI.
@@ -92,34 +104,34 @@ const Homepage: React.FC = () => {
               className="text-lg text-muted-foreground mb-8 leading-relaxed animate-fade-in-up"
               style={{ animationDelay: '240ms' }}
             >
-              Describe your symptoms and receive a structured differential diagnosis, guided sign checks, and a downloadable medical report — in minutes.
+              Describe your symptoms and receive a structured medical differential, guided sign checks, and a downloadable medical report for your healthcare provider.
             </p>
-            <div
-              className="flex flex-col sm:flex-row gap-3 mb-8 animate-fade-in-up"
-              style={{ animationDelay: '320ms' }}
+          </div>
+          <div
+            className="flex flex-col sm:flex-row justify-center gap-3 mb-8 animate-fade-in-up"
+            style={{ animationDelay: '320ms' }}
+          >
+            <Button
+              size="lg"
+              className="gap-2 text-base"
+              onClick={() => navigate('/diagnosis')}
             >
-              <Button
-                size="lg"
-                className="gap-2 text-base"
-                onClick={() => navigate('/diagnosis')}
-              >
-                Start your assessment<ArrowRight className="h-4 w-4" />
-              </Button>
-            </div>
-            <div
-              className="flex flex-wrap items-center gap-x-6 gap-y-2 animate-fade-in-up"
-              style={{ animationDelay: '400ms' }}
-            >
-              <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <ShieldCheck className="h-4 w-4 text-primary" />No account — nothing is stored
-              </span>
-              <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <FileText className="h-4 w-4 text-primary" />Report downloaded, not saved
-              </span>
-              <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <Clock className="h-4 w-4 text-primary" />Results in under 2 min
-              </span>
-            </div>
+              Start your assessment<ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+          <div
+            className="flex flex-wrap justify-center items-center gap-x-6 gap-y-2 animate-fade-in-up"
+            style={{ animationDelay: '400ms' }}
+          >
+            <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <ListChecks className="h-4 w-4 text-primary" />See what supports each result
+            </span>
+            <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <FileText className="h-4 w-4 text-primary" />Report downloaded, not saved
+            </span>
+            <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <Clock className="h-4 w-4 text-primary" />Results in under 2 min
+            </span>
           </div>
         </div>
       </section>
@@ -143,38 +155,60 @@ const Homepage: React.FC = () => {
 
       <div className="container mx-auto max-w-6xl px-4"><Separator /></div>
 
-      {/* How it works */}
+      {/* Introduction — who MediSage is for, echoes the hero's jade wash */}
       <section className="container mx-auto max-w-6xl px-4 py-16">
-        <h2 className="text-2xl md:text-3xl font-bold mb-2">How it works</h2>
-        <p className="text-muted-foreground mb-10">Three steps from first symptom to downloaded report.</p>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          {STEPS.map(({ n, title, body }, i) => (
-            <div key={n} className="flex flex-col gap-3">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl font-bold text-primary/20 font-mono tabular-nums">{n}</span>
-                {i < STEPS.length - 1 && <ChevronRight className="h-4 w-4 text-border hidden lg:block ml-auto" />}
+        <div
+          className="rounded-3xl border px-6 py-12 md:px-14 md:py-16"
+          style={{ background: 'linear-gradient(135deg, hsl(160 45% 97%), hsl(var(--background)) 70%)' }}
+        >
+          <Badge variant="outline" className="mb-4 border-accent/30 bg-accent/10 text-accent">
+            Why MediSage
+          </Badge>
+          <h2 className="font-display text-2xl md:text-3xl font-medium leading-snug mb-4 max-w-2xl">
+            Know before you go.
+          </h2>
+          <p className="text-muted-foreground max-w-2xl mb-10 leading-relaxed">
+            MediSage exists for people who don't speak medicine fluently. It's an educational first step, not a diagnosis, that offers a possible read on how serious things might be, suggests a specialist worth considering, and turns it all into a report your doctor can pick up on day one.
+          </p>
+          <div className="grid sm:grid-cols-3 gap-8">
+            {INTRO_POINTS.map(({ icon: Icon, title, body }) => (
+              <div key={title} className="flex flex-col gap-2">
+                <Icon className="h-5 w-5 text-primary mb-1" />
+                <h3 className="font-semibold text-sm">{title}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
               </div>
-              <h3 className="font-semibold">{title}</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="bg-primary/5 border-t border-primary/10">
-        <div className="container mx-auto max-w-6xl px-4 py-16 flex flex-col items-center text-center gap-4">
-          <Stethoscope className="h-10 w-10 text-primary" />
-          <h2 className="text-2xl md:text-3xl font-bold">Ready to start?</h2>
-          <p className="text-muted-foreground max-w-md">
-            Run a diagnostic assessment in under two minutes. No sign-up required.
+      {/* How it works — same card/badge treatment as Why MediSage */}
+      <section className="container mx-auto max-w-6xl px-4 py-16">
+        <div
+          className="rounded-3xl border px-6 py-12 md:px-14 md:py-16"
+          style={{ background: 'linear-gradient(135deg, hsl(160 45% 97%), hsl(var(--background)) 70%)' }}
+        >
+          <Badge variant="outline" className="mb-4 border-accent/30 bg-accent/10 text-accent">
+            How It Works
+          </Badge>
+          <h2 className="font-display text-2xl md:text-3xl font-medium leading-snug mb-4 max-w-2xl">
+            Three steps to clarity.
+          </h2>
+          <p className="text-muted-foreground max-w-2xl mb-10 leading-relaxed">
+            From your first symptom to a report ready to hand your doctor.
           </p>
-          <Button size="lg" onClick={() => navigate('/diagnosis')} className="gap-2 mt-2">
-            Start your assessment<ArrowRight className="h-4 w-4" />
-          </Button>
-          <p className="text-xs text-muted-foreground">
-            For educational purposes only. Not a substitute for professional medical advice.
-          </p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            {STEPS.map(({ n, title, body }, i) => (
+              <div key={n} className="flex flex-col gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl font-bold text-primary/20 font-mono tabular-nums">{n}</span>
+                  {i < STEPS.length - 1 && <ChevronRight className="h-4 w-4 text-border hidden lg:block ml-auto" />}
+                </div>
+                <h3 className="font-semibold">{title}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 

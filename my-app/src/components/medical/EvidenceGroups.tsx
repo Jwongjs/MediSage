@@ -25,7 +25,7 @@ export const EvidenceGroups: React.FC<Props> = ({ criteria, canonical, judgement
     .map(([key, importance]) => ({
       key,
       importance,
-      label: byKey.get(key)?.label ?? key,
+      label: byKey.get(key)?.plain_label || byKey.get(key)?.label || key,
       judgement: judgements[key] ?? { status: 'not_mentioned' as const, evidence: null, source: 'llm' as const },
     }))
     .sort((a, b) => IMPORTANCE_ORDER[a.importance] - IMPORTANCE_ORDER[b.importance]);
@@ -55,9 +55,6 @@ export const EvidenceGroups: React.FC<Props> = ({ criteria, canonical, judgement
                   {row.judgement.evidence && (
                     <p className="text-xs mt-1.5 italic opacity-80 whitespace-pre-line">
                       “{row.judgement.evidence}”
-                      {row.judgement.source === 'patient_answer' && (
-                        <span className="not-italic ml-1.5 opacity-70">· you confirmed this</span>
-                      )}
                     </p>
                   )}
                 </li>

@@ -1,9 +1,8 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { AlertCircle } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { EvidenceGroups } from './EvidenceGroups';
-import { Criterion, Judgement, Importance } from 'types/diagnosis';
+import { Criterion, Judgement, Importance, Explanation } from 'types/diagnosis';
 
 interface Props {
   diagnosis: string;
@@ -12,30 +11,38 @@ interface Props {
   criteria: Record<string, Importance>;
   canonical: Criterion[];
   judgements: Record<string, Judgement>;
-  grounded: boolean;
+  explanation: Explanation | null;
 }
 
 export const CandidateCard: React.FC<Props> = ({
-  diagnosis, rank, tied, criteria, canonical, judgements, grounded,
+  diagnosis, rank, tied, criteria, canonical, judgements, explanation,
 }) => (
   <Card className="shadow-sm">
     <CardHeader className="pb-3">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <CardDescription className="text-xs mb-1">
-            Rank {rank}{tied && ' · tied'}
-          </CardDescription>
-          <CardTitle className="text-lg font-display">{diagnosis}</CardTitle>
-        </div>
-        {!grounded && (
-          <Badge variant="outline" className="text-[10px] gap-1">
-            <AlertCircle className="h-3 w-3" />
-            Ungrounded criteria
-          </Badge>
-        )}
-      </div>
+      <CardDescription className="text-xs mb-1">
+        Rank {rank}{tied && ' · tied'}
+      </CardDescription>
+      <CardTitle className="text-lg font-display">{diagnosis}</CardTitle>
     </CardHeader>
     <CardContent>
+      {explanation && (
+        <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+          {explanation.text}
+          {explanation.source && explanation.url && (
+            <>
+              {' '}
+              <a
+                href={explanation.url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary underline underline-offset-2 inline-flex items-center gap-1 whitespace-nowrap"
+              >
+                {explanation.source}<ExternalLink className="h-3 w-3" />
+              </a>
+            </>
+          )}
+        </p>
+      )}
       <EvidenceGroups criteria={criteria} canonical={canonical} judgements={judgements} />
     </CardContent>
   </Card>

@@ -53,7 +53,7 @@ const PrivacyPolicyPage: React.FC = () => (
 
       <Section title="4. Where that text goes">
         <p>
-          To produce a differential, your symptom text and answers are sent to a third-party
+          To produce a medical differential, your symptom text and answers are sent to a third-party
           AI provider — currently <strong className="text-foreground">Groq</strong> — which runs
           the language model that generates the output.
         </p>
@@ -69,8 +69,8 @@ const PrivacyPolicyPage: React.FC = () => (
       <Section title="5. What we keep: nothing">
         <p>
           We operate no database and no user storage. While an assessment is open, its state is
-          held in the server's memory so that your answers can be applied to the differential
-          you already have. That memory is not written to disk, not backed up, and not exported.
+          held in the server's memory so that your answers can be applied to the medical
+          differential you already have. That memory is not written to disk, not backed up, and not exported.
         </p>
         <p>
           It is discarded when the server restarts, which means an assessment left open long
