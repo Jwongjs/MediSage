@@ -122,7 +122,6 @@ async def root():
             "health": "/health",
             "docs": "/docs",
             "start": "/diagnosis/start",
-            "answers": "/diagnosis/{session_id}/answers",
             "finalize": "/diagnosis/{session_id}/finalize",
             "export": "/patient/export_report",
         },
