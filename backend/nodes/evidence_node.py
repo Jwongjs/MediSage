@@ -4,11 +4,28 @@ import json
 import logging
 import re
 
-from llm.client import llm_client
+from config import settings
+from llm.client import LLMClient
 
 logger = logging.getLogger(__name__)
 
-CHUNK_SIZE = 40
+llm_client = LLMClient(model=settings.EVIDENCE_LLM_MODEL)
+
+# Sized against the output-token ceiling, not readability: Node C returns one
+# JSON entry per criterion, so this count -- not max_tokens -- is what decides
+# how much the model has to emit. Lowering max_tokens instead would truncate
+# the JSON mid-object, and _parse turns an unparseable response into {}, which
+# reconcile then reads as not_mentioned for the whole batch (_parse does log a
+# warning, so it is traceable, but the run still completes with the evidence
+# gone).
+#
+# 40 was the value that produced a hard 429: Groq priced one batch at 1439
+# expected output tokens against a 1000/min ceiling and refused it before
+# generating anything. That is a SIZE rejection, so it would fire on the first
+# request of the day -- no amount of waiting or retrying clears it, only a
+# smaller batch. 15 keeps a batch's visible JSON near ~550 tokens, well inside
+# the ceiling with room for a reasoning model's hidden tokens on top.
+CHUNK_SIZE = 15
 _STATUSES = {"supported", "contradicted", "not_mentioned"}
 _NEEDS_EVIDENCE = {"supported", "contradicted"}
 
@@ -133,7 +150,16 @@ class EvidenceNode:
         existing = state.get("judgements", {}) or {}
 
         merged: dict[str, dict] = {}
-        for batch in chunk_criteria(canonical):
+        batches = chunk_criteria(canonical)
+        # One request per batch, each emitting one JSON entry per criterion.
+        # This is the number to read when a run gets rate limited: it is what
+        # decides total output tokens per minute, and nothing upstream of the
+        # merge stage is visible from the 429 itself.
+        logger.info(
+            "Evidence: %d criteria in %d batch(es) of up to %d",
+            len(canonical), len(batches), CHUNK_SIZE,
+        )
+        for batch in batches:
             raw = await _evaluate(patient_text, batch)
             merged.update(reconcile(raw, batch, patient_text))
 

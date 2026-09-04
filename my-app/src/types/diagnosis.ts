@@ -47,7 +47,6 @@ export interface DiagnosisView {
   canonical: Criterion[];
   matrix: Record<string, Record<string, Importance>>;
   judgements: Record<string, Judgement>;
-  grounded: Record<string, boolean>;
   explanations: Record<string, Explanation | null>;
   summary: Summary | null;
 }

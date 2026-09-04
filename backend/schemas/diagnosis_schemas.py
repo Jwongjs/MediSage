@@ -34,7 +34,6 @@ class DiagnosisState(TypedDict, total=False):
 
     candidates: list[str]
     profiles: dict[str, list[dict]]
-    grounded: dict[str, bool]
     explanations: dict[str, Explanation | None]
 
     canonical: list[Criterion]

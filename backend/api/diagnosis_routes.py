@@ -1,27 +1,15 @@
-from fastapi import APIRouter, Body, Form, HTTPException, Request, Response
+from fastapi import APIRouter, Body, Depends, Form, HTTPException, Request, Response
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
 import uuid
 import logging
 
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-
-from config import settings
 from diagnosis.finalize import apply_checked_symptoms
 from diagnosis.ranking import rank
+from rate_limit import rate_limit
 
 diagnosis_router = APIRouter()
 logger = logging.getLogger(__name__)
-# in_memory_fallback_enabled: slowapi catches a Redis connection error at
-# request time and switches to in-process counting rather than raising -
-# without it, a Redis outage would 500 every rate-limited request instead of
-# just degrading fairness across replicas.
-limiter = Limiter(
-    key_func=get_remote_address,
-    storage_uri=settings.REDIS_URL,
-    in_memory_fallback_enabled=True,
-)
 
 
 def _view(state: dict) -> dict:
@@ -46,7 +34,6 @@ def _view(state: dict) -> dict:
         "canonical": canonical,
         "matrix": state.get("matrix", {}),
         "judgements": state.get("judgements", {}),
-        "grounded": state.get("grounded", {}),
         "explanations": explanations,
         "summary": state.get("summary"),
     }
@@ -62,8 +49,7 @@ def _step(state: dict, action: str) -> dict:
     }
 
 
-@diagnosis_router.post("/diagnosis/start")
-@limiter.limit("20/minute")
+@diagnosis_router.post("/diagnosis/start", dependencies=[Depends(rate_limit("diagnosis_start", 20, 60))])
 async def start_diagnosis(
     request: Request,
     patient_text: str = Form(...),
@@ -90,8 +76,7 @@ async def start_diagnosis(
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@diagnosis_router.post("/diagnosis/{session_id}/finalize")
-@limiter.limit("20/minute")
+@diagnosis_router.post("/diagnosis/{session_id}/finalize", dependencies=[Depends(rate_limit("diagnosis_finalize", 20, 60))])
 async def finalize_diagnosis(
     request: Request, session_id: str, body: dict = Body(default={})
 ):
@@ -133,8 +118,7 @@ async def finalize_diagnosis(
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@diagnosis_router.post("/patient/export_report")
-@limiter.limit("20/minute")
+@diagnosis_router.post("/patient/export_report", dependencies=[Depends(rate_limit("export_report", 20, 60))])
 async def export_report_file(
     request: Request,
     session_id: str = Form(...),

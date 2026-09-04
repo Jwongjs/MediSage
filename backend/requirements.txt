@@ -5,7 +5,6 @@ requests
 aiofiles
 langchain
 langgraph
-google-genai
 pydantic
 openai>=1.0.0
 reportlab==4.0.4
@@ -14,7 +13,8 @@ pytest>=7.4.0
 pytest-asyncio>=0.21.0
 httpx
 langchain-groq
+# direct import in llm/client.py for RateLimitError, not just a langchain transitive
+groq
 langsmith>=0.1.0
 python-multipart
-slowapi
 redis

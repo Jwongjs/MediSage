@@ -28,10 +28,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from langgraph.checkpoint.memory import MemorySaver
 
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-
-from api.diagnosis_routes import diagnosis_router, limiter
+from api.diagnosis_routes import diagnosis_router
 from config import settings
 
 if settings.APP_ENV == "production":
@@ -87,6 +84,8 @@ async def lifespan(app: FastAPI):
     logger.info("Startup complete!")
     yield
 
+    from rate_limit import close_redis
+    await close_redis()
     logger.info("Shutdown complete!")
 
 
@@ -96,9 +95,6 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan,
 )
-
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(

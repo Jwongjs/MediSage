@@ -11,10 +11,13 @@ to-do.txt\
 .benchmarks
 .env
 
+CLAUDE.md
+
 # Unnecessary folders
 next-saas-starter-master/
 4_deployment/
 my-app_old/
+
 
 # Standalone reference project — kept on disk, never tracked (contained a
 # service-account credential + large binaries; not used by the app)

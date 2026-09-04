@@ -6,7 +6,6 @@ import logging
 import re
 
 from config import settings
-from knowledge.interface import retrieve_criteria_passages
 from llm.client import LLMClient
 
 # Own client, not the shared llm_client: gpt-oss-120b is a reasoning model
@@ -17,7 +16,6 @@ llm_client = LLMClient(model=settings.PROFILE_LLM_MODEL)
 
 logger = logging.getLogger(__name__)
 
-RETRIEVAL_K = 15
 _IMPORTANCES = {"strong", "moderate", "weak"}
 _KINDS = {"symptom", "history", "lab", "imaging", "demographic"}
 # Only the kinds a patient can answer for themselves survive parsing. A lab or
@@ -32,9 +30,7 @@ _KEPT_KINDS = {"symptom", "history"}
 
 # Keyed on the normalised diagnosis name. A profile depends only on the
 # condition, never on the patient, so it is safe to share across sessions.
-# The grounded flag is stored WITH the profile: a profile generated without
-# passages must not report itself as grounded on a later cache hit.
-_CACHE: dict[str, tuple[list[dict], bool]] = {}
+_CACHE: dict[str, list[dict]] = {}
 
 _FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
 
@@ -93,24 +89,18 @@ def parse_profile(raw: str) -> list[dict]:
     return criteria
 
 
-async def _profile_for(diagnosis: str) -> tuple[list[dict], bool]:
+async def _profile_for(diagnosis: str) -> list[dict]:
     cache_key = diagnosis.strip().lower()
     cached = _CACHE.get(cache_key)
     if cached is not None:
-        criteria, grounded = cached
-        return [dict(c) for c in criteria], grounded
-
-    passages = await retrieve_criteria_passages(diagnosis, k=RETRIEVAL_K)
-    grounded = bool(passages)
-    context = "\n\n".join(f"[{p.source}] {p.text}" for p in passages)
+        return [dict(c) for c in cached]
 
     messages = [
         {"role": "system", "content": _SYSTEM},
         {
             "role": "user",
             "content": (
-                f"Condition: {diagnosis}\n"
-                f"Relevant documents:\n{context or '(none available)'}\n\n"
+                f"Condition: {diagnosis}\n\n"
                 "Output the diagnostic criteria as a JSON array. Each element:\n"
                 '{"id": <int>, "description": "<criterion, clinical language>", '
                 '"plain_label": "<the SAME criterion in plain everyday words, '
@@ -127,9 +117,7 @@ async def _profile_for(diagnosis: str) -> tuple[list[dict], bool]:
                 "polarity: present = the criterion is met when the patient HAS the "
                 "finding; absent = it is met when the patient does NOT have it, or "
                 "when another disorder has been ruled out.\n"
-                "Write only criteria the patient can answer for themselves. Omit lab "
-                "and imaging findings, omit anything needing a physical or "
-                "neurological exam, and omit age, sex, and risk-group criteria -- "
+                "Write only criteria the patient can answer for themselves."
                 "this patient has no way to report them. Label polarity honestly "
                 "instead of rewording a criterion to make it look positive.\n"
                 'For a "symptom" entry, phrase "description" as the standard '
@@ -143,11 +131,11 @@ async def _profile_for(diagnosis: str) -> tuple[list[dict], bool]:
             ),
         },
     ]
-    raw = await llm_client.complete(messages, max_tokens=2500, temperature=0.1)
+    raw = await llm_client.complete(messages, max_tokens=2000, temperature=0.1)
     criteria = parse_profile(raw)
     if criteria:
-        _CACHE[cache_key] = (criteria, grounded)
-    return [dict(c) for c in criteria], grounded
+        _CACHE[cache_key] = criteria
+    return [dict(c) for c in criteria]
 
 
 class ProfileNode:
@@ -165,15 +153,13 @@ class ProfileNode:
         )
 
         profiles: dict[str, list[dict]] = {}
-        grounded: dict[str, bool] = {}
         for diagnosis, result in zip(candidates, results):
             if isinstance(result, Exception):
                 logger.error("Profile generation failed for %s: %s", diagnosis, result)
-                profiles[diagnosis], grounded[diagnosis] = [], False
+                profiles[diagnosis] = []
             else:
-                profiles[diagnosis], grounded[diagnosis] = result
+                profiles[diagnosis] = result
 
         state["profiles"] = profiles
-        state["grounded"] = grounded
         state["stage"] = "profiles_complete"
         return state

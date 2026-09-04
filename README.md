@@ -97,7 +97,7 @@ symptoms
 | Consumer definitions | LLM-generated alongside the differential, ungrounded — the one unsourced field in the app |
 | State | `MemorySaver`, in-process, deliberately not persisted |
 | Frontend | React 18, Vite, Tailwind CSS + shadcn/ui |
-| Rate limiting | `slowapi`, per IP, Redis when available and in-memory otherwise |
+| Rate limiting | Custom Redis fixed-window counter, per IP, in-memory fallback when Redis is unreachable |
 | Auth | **None.** There are no accounts. |
 | Deploy | Docker, Railway, GitHub Actions CI/CD |
 

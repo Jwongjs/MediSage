@@ -4,8 +4,15 @@ import json
 import logging
 import re
 
+from config import settings
 from knowledge.interface import Explanation
-from llm.client import llm_client
+from llm.client import LLMClient
+
+# Own model, own Groq rate-limit bucket. Non-reasoning by requirement, not
+# preference: max_tokens is 500 and the reply is parsed as JSON, so a model
+# that spent that budget on hidden reasoning would return nothing parseable
+# and the run would end with no candidates at all.
+llm_client = LLMClient(model=settings.DIFFERENTIAL_LLM_MODEL)
 
 logger = logging.getLogger(__name__)
 

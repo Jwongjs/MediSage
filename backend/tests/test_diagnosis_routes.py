@@ -102,7 +102,6 @@ def _stub_app():
     graph = workflow.compile(checkpointer=MemorySaver(), interrupt_before=["summary"])
 
     app = FastAPI()
-    app.state.limiter = routes.limiter
     app.state.diagnosis_graph = graph
     app.include_router(routes.diagnosis_router)
     return app, graph

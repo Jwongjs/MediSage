@@ -61,3 +61,48 @@ async def test_summary_node_reports_unknown_severity_when_unparseable():
         client.complete = AsyncMock(return_value="I cannot determine this.")
         state = await SummaryNode()({"ranking": [["Appendicitis"]], "patient_text": "x"})
     assert state["summary"]["severity"] == "unknown"
+
+
+async def test_summary_node_rejects_echoed_placeholder_specialist():
+    """A model that copies the template instead of filling it in is not a
+    recommendation. This surfaced on the report page as the literal text
+    "<the type of doctor the patient should see first>" in the specialist
+    badge, because the capture was `.+` with nothing checking it."""
+    from nodes.summary_node import SummaryNode
+    reply = (
+        "- Severity: moderate\n"
+        "- Specialist: <the type of doctor the patient should see first>"
+    )
+    with patch("nodes.summary_node.llm_client") as client:
+        client.complete = AsyncMock(return_value=reply)
+        state = await SummaryNode()({"ranking": [["Migraine"]], "patient_text": "x"})
+    # Severity still parses -- only the unusable field falls back.
+    assert state["summary"]["severity"] == "moderate"
+    assert state["summary"]["specialist_recommendation"] == "general_practitioner"
+
+
+async def test_summary_node_rejects_echoed_current_specialist_placeholder():
+    """Same failure as above, reintroduced when the prompt's placeholder was
+    reworded to "name the type of doctor to see first" -- still wrapped in
+    brackets, but a model can echo that instruction text verbatim as if it
+    were the answer. This surfaced on the report page as that literal
+    sentence in the specialist badge."""
+    from nodes.summary_node import SummaryNode
+    reply = (
+        "- Severity: moderate\n"
+        "- Specialist: <name the type of doctor to see first>"
+    )
+    with patch("nodes.summary_node.llm_client") as client:
+        client.complete = AsyncMock(return_value=reply)
+        state = await SummaryNode()({"ranking": [["Migraine"]], "patient_text": "x"})
+    assert state["summary"]["severity"] == "moderate"
+    assert state["summary"]["specialist_recommendation"] == "general_practitioner"
+
+
+async def test_summary_node_keeps_a_real_specialist():
+    from nodes.summary_node import SummaryNode
+    reply = "- Severity: severe\n- Specialist: Cardiologist"
+    with patch("nodes.summary_node.llm_client") as client:
+        client.complete = AsyncMock(return_value=reply)
+        state = await SummaryNode()({"ranking": [["MI"]], "patient_text": "x"})
+    assert state["summary"]["specialist_recommendation"] == "Cardiologist"
