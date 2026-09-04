@@ -1,4 +1,4 @@
-import { DiagnosisView, Answer, ExportFormat } from 'types/diagnosis';
+import { DiagnosisView, ExportFormat } from 'types/diagnosis';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -38,19 +38,13 @@ export class DiagnosisService {
     );
   }
 
-  static async submitAnswers(sessionId: string, answers: Record<string, Answer>) {
+  static async finalize(sessionId: string, checked: string[]) {
     return handle<{ session_id: string; result: DiagnosisView }>(
-      await fetch(`${API_BASE_URL}/diagnosis/${sessionId}/answers`, {
+      await fetch(`${API_BASE_URL}/diagnosis/${sessionId}/finalize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(answers),
+        body: JSON.stringify({ checked }),
       })
-    );
-  }
-
-  static async finalize(sessionId: string) {
-    return handle<{ session_id: string; result: DiagnosisView }>(
-      await fetch(`${API_BASE_URL}/diagnosis/${sessionId}/finalize`, { method: 'POST' })
     );
   }
 
