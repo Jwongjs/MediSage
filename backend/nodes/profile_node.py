@@ -5,14 +5,30 @@ import json
 import logging
 import re
 
+from config import settings
 from knowledge.interface import retrieve_criteria_passages
-from llm.client import llm_client
+from llm.client import LLMClient
+
+# Own client, not the shared llm_client: gpt-oss-120b is a reasoning model
+# that spends a variable, sometimes large share of its budget on hidden
+# reasoning before any visible output, so it needs its own model choice and
+# a generous max_tokens rather than sharing Node A/C/Summary's caps.
+llm_client = LLMClient(model=settings.PROFILE_LLM_MODEL)
 
 logger = logging.getLogger(__name__)
 
 RETRIEVAL_K = 15
 _IMPORTANCES = {"strong", "moderate", "weak"}
 _KINDS = {"symptom", "history", "lab", "imaging", "demographic"}
+# Only the kinds a patient can answer for themselves survive parsing. A lab or
+# imaging criterion sits at not_mentioned forever -- nobody can self-report
+# their own WBC count -- and ranking counts an unaddressed strong/moderate
+# criterion against the condition, so keeping them would push lab-diagnosed
+# conditions down for evidence the patient was never able to give. demographic
+# goes with them: nothing in this flow collects age or sex. _KINDS stays whole
+# so a rejected kind is recognised as itself instead of falling back to
+# "symptom" and slipping through.
+_KEPT_KINDS = {"symptom", "history"}
 
 # Keyed on the normalised diagnosis name. A profile depends only on the
 # condition, never on the patient, so it is safe to share across sessions.
@@ -53,11 +69,26 @@ def parse_profile(raw: str) -> list[dict]:
             continue
         importance = entry.get("importance", "moderate")
         kind = entry.get("kind", "symptom")
+        kind = kind if kind in _KINDS else "symptom"
+        if kind not in _KEPT_KINDS:
+            continue
+        # Exclusion criteria are dropped for a reason Node C makes structural:
+        # `supported` requires a verbatim quote from the patient, and an absence
+        # cannot be quoted -- nobody writes "I have no nausea." So a negated
+        # criterion can never be supported by the narrative, only sits at
+        # not_mentioned, and drags the condition down through the same
+        # strong/moderate penalty that unanswerable lab criteria did. It also
+        # renders as a double negative: a checked "No nausea or vomiting" under
+        # "Do you have these?" reads both ways. Node B is asked to LABEL these
+        # rather than suppress them -- a model told not to write exclusion
+        # criteria writes them anyway, just unlabelled and undetectable.
+        if entry.get("polarity") == "absent":
+            continue
         criteria.append({
             "text": text,
             "plain_label": (entry.get("plain_label") or "").strip(),
             "importance": importance if importance in _IMPORTANCES else "moderate",
-            "kind": kind if kind in _KINDS else "symptom",
+            "kind": kind,
         })
     return criteria
 
@@ -86,17 +117,33 @@ async def _profile_for(diagnosis: str) -> tuple[list[dict], bool]:
                 "max 6 words, for a patient with no medical background -- keep it "
                 'as specific as the clinical version, do not generalize it away>", '
                 '"importance": "strong|moderate|weak", '
-                '"kind": "symptom|history|lab|imaging|demographic"}\n\n'
+                '"polarity": "present|absent", '
+                '"kind": "symptom|history"}\n\n'
                 "importance: strong = core criterion, absence severely impacts the "
                 "diagnosis; moderate = important supportive criterion; weak = auxiliary.\n"
-                "kind: symptom = something the patient can report; history = past "
-                "events or exposures; lab/imaging = test findings; demographic = age, "
-                "sex, or risk group.\n"
+                "kind: symptom = something the patient notices and can report "
+                "themselves, without a clinician examining them; history = past "
+                "events or exposures.\n"
+                "polarity: present = the criterion is met when the patient HAS the "
+                "finding; absent = it is met when the patient does NOT have it, or "
+                "when another disorder has been ruled out.\n"
+                "Write only criteria the patient can answer for themselves. Omit lab "
+                "and imaging findings, omit anything needing a physical or "
+                "neurological exam, and omit age, sex, and risk-group criteria -- "
+                "this patient has no way to report them. Label polarity honestly "
+                "instead of rewording a criterion to make it look positive.\n"
+                'For a "symptom" entry, phrase "description" as the standard '
+                "clinical term for the finding, the way it would appear in a "
+                "differential-diagnosis note or a medical ontology -- not a "
+                'descriptive paraphrase: "Abdominal pain", not "diffuse '
+                'abdominal cramping" or "crampy belly pain that comes and '
+                'goes." Name one concept per entry; do not stack qualifiers '
+                "onto the noun phrase.\n"
                 "Output JSON only."
             ),
         },
     ]
-    raw = await llm_client.complete(messages, max_tokens=900, temperature=0.1)
+    raw = await llm_client.complete(messages, max_tokens=2500, temperature=0.1)
     criteria = parse_profile(raw)
     if criteria:
         _CACHE[cache_key] = (criteria, grounded)

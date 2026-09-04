@@ -2,17 +2,11 @@ import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
-import { Check, X, Info } from 'lucide-react';
-import { Criterion, Judgement, Importance, CriterionKind } from 'types/diagnosis';
+import { Check, X } from 'lucide-react';
+import { Criterion, Judgement, Importance } from 'types/diagnosis';
 import { effectiveStatus } from 'lib/ranking';
 
 const IMPORTANCE_ORDER: Record<Importance, number> = { strong: 0, moderate: 1, weak: 2 };
-
-// Only symptom/history criteria are things a patient can self-report by
-// checking a box. lab/imaging/demographic criteria are evaluated by Node C
-// straight from the narrative -- a remote patient can't self-report their
-// own WBC count -- so they always render read-only.
-const CHECKABLE_KINDS: ReadonlySet<CriterionKind> = new Set(['symptom', 'history']);
 
 interface Props {
   criteria: Record<string, Importance>;
@@ -31,15 +25,11 @@ export const EvidenceGroups: React.FC<Props> = ({ criteria, canonical, judgement
       importance,
       label: byKey.get(key)?.plain_label || byKey.get(key)?.label || key,
       status: effectiveStatus(judgements[key], checked.has(key)),
-      checkable: CHECKABLE_KINDS.has(byKey.get(key)?.kind as CriterionKind),
     }))
     .sort((a, b) => IMPORTANCE_ORDER[a.importance] - IMPORTANCE_ORDER[b.importance]);
 
   const contradicted = rows.filter(r => r.status === 'contradicted');
-  // Non-contradicted, but not something the patient can toggle themselves --
-  // rendered read-only with its actual (already-evaluated) status.
-  const readOnly = rows.filter(r => r.status !== 'contradicted' && !r.checkable);
-  const interactive = rows.filter(r => r.status !== 'contradicted' && r.checkable);
+  const interactive = rows.filter(r => r.status !== 'contradicted');
 
   return (
     <div className="space-y-4">
@@ -53,33 +43,6 @@ export const EvidenceGroups: React.FC<Props> = ({ criteria, canonical, judgement
           <ul className="space-y-1.5">
             {contradicted.map(row => (
               <li key={row.key} className="rounded-lg border px-3 py-2 evidence-contradicted">
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-sm leading-snug">{row.label}</span>
-                  <Badge variant="outline" className="text-[10px] shrink-0 capitalize">
-                    {row.importance}
-                  </Badge>
-                </div>
-                {judgements[row.key]?.evidence && (
-                  <p className="text-xs mt-1.5 italic opacity-80 whitespace-pre-line">
-                    "{judgements[row.key].evidence}"
-                  </p>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {readOnly.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
-            <Info className="h-3.5 w-3.5" />
-            From what you described
-            <span className="font-normal normal-case tracking-normal">({readOnly.length})</span>
-          </p>
-          <ul className="space-y-1.5">
-            {readOnly.map(row => (
-              <li key={row.key} className={cn('rounded-lg border px-3 py-2', row.status === 'supported' ? 'evidence-supported' : 'evidence-unaddressed')}>
                 <div className="flex items-start justify-between gap-2">
                   <span className="text-sm leading-snug">{row.label}</span>
                   <Badge variant="outline" className="text-[10px] shrink-0 capitalize">
