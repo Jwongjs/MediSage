@@ -11,11 +11,13 @@ interface Props {
   criteria: Record<string, Importance>;
   canonical: Criterion[];
   judgements: Record<string, Judgement>;
+  checked: Set<string>;
+  onToggle: (key: string) => void;
   explanation: Explanation | null;
 }
 
 export const CandidateCard: React.FC<Props> = ({
-  diagnosis, rank, tied, criteria, canonical, judgements, explanation,
+  diagnosis, rank, tied, criteria, canonical, judgements, checked, onToggle, explanation,
 }) => (
   <Card className="shadow-sm">
     <CardHeader className="pb-3">
@@ -43,7 +45,7 @@ export const CandidateCard: React.FC<Props> = ({
           )}
         </p>
       )}
-      <EvidenceGroups criteria={criteria} canonical={canonical} judgements={judgements} />
+      <EvidenceGroups criteria={criteria} canonical={canonical} judgements={judgements} checked={checked} onToggle={onToggle} />
     </CardContent>
   </Card>
 );
