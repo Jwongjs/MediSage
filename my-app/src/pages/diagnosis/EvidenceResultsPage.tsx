@@ -1,44 +1,57 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import {
-  Accordion, AccordionContent, AccordionItem, AccordionTrigger,
-} from '@/components/ui/accordion';
-import { Info, ListChecks, RotateCcw, HelpCircle, FileCheck } from 'lucide-react';
+import { Info, RotateCcw, HelpCircle, FileCheck } from 'lucide-react';
 import { DiagnosisProgress } from 'components/medical/DiagnosisProgress';
 import { CandidateCard } from 'components/medical/CandidateCard';
 import { DiagnosisView } from 'types/diagnosis';
+import { rank, effectiveStatus } from 'lib/ranking';
 
 interface Props {
   view: DiagnosisView;
   loading: boolean;
-  onAnswerQuestions: () => void;
-  onFinalize: () => void;
+  onFinalize: (checked: string[]) => void;
   onReset: () => void;
 }
 
-const EXPANDED = 3;
-
 export const EvidenceResultsPage: React.FC<Props> = ({
-  view, loading, onAnswerQuestions, onFinalize, onReset,
+  view, loading, onFinalize, onReset,
 }) => {
-  const flat = view.ranking.flatMap(group =>
-    group.diagnoses.map(name => ({
-      name, rank: group.rank, tied: group.diagnoses.length > 1,
-    }))
+  // Local overrides only: a key here means the user has explicitly
+  // toggled it away from whatever judgements[key].status originally said.
+  // Never holds a contradicted key -- there is no checkbox for one.
+  const [checked, setChecked] = useState<Set<string>>(() => {
+    const initial = new Set<string>();
+    for (const c of view.canonical) {
+      if (view.judgements[c.key]?.status === 'supported') initial.add(c.key);
+    }
+    return initial;
+  });
+
+  const toggle = (key: string) => {
+    setChecked(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const liveRanking = useMemo(() => {
+    const statuses: Record<string, ReturnType<typeof effectiveStatus>> = {};
+    for (const c of view.canonical) {
+      statuses[c.key] = effectiveStatus(view.judgements[c.key], checked.has(c.key));
+    }
+    const matrix = Object.fromEntries(
+      Object.keys(view.matrix).filter(d => !view.not_evaluated.includes(d)).map(d => [d, view.matrix[d]])
+    );
+    return rank(matrix, statuses);
+  }, [view.canonical, view.judgements, view.matrix, view.not_evaluated, checked]);
+
+  const flat = liveRanking.flatMap((group, i) =>
+    group.map(name => ({ name, rank: i + 1, tied: group.length > 1 }))
   );
-  // Expand whole tie groups. Slicing the flattened list would show one
-  // member of a tie while hiding its ties, which defeats the point of
-  // surfacing the tie at all.
-  let cut = 0;
-  for (const group of view.ranking) {
-    if (cut >= EXPANDED) break;
-    cut += group.diagnoses.length;
-  }
-  const shown = flat.slice(0, cut);
-  const rest = flat.slice(cut);
-  const hasTies = view.ranking.some(g => g.diagnoses.length > 1);
+  const hasTies = liveRanking.some(g => g.length > 1);
 
   return (
     <div className="space-y-6 animate-fade-in-up">
@@ -48,8 +61,8 @@ export const EvidenceResultsPage: React.FC<Props> = ({
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription>
-            Some conditions are equally supported by what you have told us so far.
-            Answering a few more questions can separate them.
+            Some conditions are equally supported by what you have checked so far.
+            Checking a few more symptoms can separate them.
           </AlertDescription>
         </Alert>
       )}
@@ -58,11 +71,12 @@ export const EvidenceResultsPage: React.FC<Props> = ({
         <span className="font-medium text-foreground">Strong</span>,{' '}
         <span className="font-medium text-foreground">moderate</span> and{' '}
         <span className="font-medium text-foreground">weak</span> show how central
-        each detail/symptom is to that condition.
+        each detail/symptom is to that condition. Check the ones that apply to you —
+        the ranking updates as you go.
       </p>
 
       <div className="space-y-4">
-        {shown.map(c => (
+        {flat.map(c => (
           <CandidateCard
             key={c.name}
             diagnosis={c.name}
@@ -71,34 +85,12 @@ export const EvidenceResultsPage: React.FC<Props> = ({
             criteria={view.matrix[c.name] ?? {}}
             canonical={view.canonical}
             judgements={view.judgements}
+            checked={checked}
+            onToggle={toggle}
             explanation={view.explanations[c.name] ?? null}
           />
         ))}
       </div>
-
-      {rest.length > 0 && (
-        <Accordion type="single" collapsible>
-          <AccordionItem value="more">
-            <AccordionTrigger className="text-sm">
-              {rest.length} more condition{rest.length > 1 ? 's' : ''} considered
-            </AccordionTrigger>
-            <AccordionContent className="space-y-4 pt-2">
-              {rest.map(c => (
-                <CandidateCard
-                  key={c.name}
-                  diagnosis={c.name}
-                  rank={c.rank}
-                  tied={c.tied}
-                  criteria={view.matrix[c.name] ?? {}}
-                  canonical={view.canonical}
-                  judgements={view.judgements}
-                  explanation={view.explanations[c.name] ?? null}
-                />
-              ))}
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      )}
 
       {view.not_evaluated.length > 0 && (
         <div className="bg-secondary/60 rounded-lg p-4">
@@ -124,21 +116,11 @@ export const EvidenceResultsPage: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Finalising is always available. It is the only route to the report, and
-          the report is the only copy the user gets — gating it on open_questions
-          stranded anyone whose differential produced none. */}
       <div className="flex gap-3 flex-wrap">
-        <Button onClick={onFinalize} disabled={loading} className="gap-2">
+        <Button onClick={() => onFinalize(Array.from(checked))} disabled={loading} className="gap-2">
           <FileCheck className="h-4 w-4" />
           Finish and get report
         </Button>
-        {view.open_questions.length > 0 && (
-          <Button variant="secondary" onClick={onAnswerQuestions} disabled={loading} className="gap-2">
-            <ListChecks className="h-4 w-4" />
-            Answer {view.open_questions.length} question
-            {view.open_questions.length > 1 ? 's' : ''}
-          </Button>
-        )}
         <Button variant="ghost" onClick={onReset} disabled={loading} className="gap-2">
           <RotateCcw className="h-4 w-4" />
           Start over
