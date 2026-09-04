@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from 'react';
-import { DiagnosisView, Answer } from 'types/diagnosis';
+import { DiagnosisView } from 'types/diagnosis';
 import { DiagnosisService } from 'services/diagnosis';
 import { FlowStep } from 'WorkflowRouter';
 
@@ -44,33 +44,7 @@ export const useDiagnosis = () => {
     }
   }, []);
 
-  const goToQuestions = useCallback(() => {
-    setState(prev => ({ ...prev, step: 'questions' }));
-  }, []);
-
-  const submitAnswers = useCallback(async (answers: Record<string, Answer>) => {
-    const sessionId = state.sessionId;
-    if (!sessionId) {
-      setState(prev => ({ ...prev, error: 'No active session ID available' }));
-      return;
-    }
-
-    setState(prev => ({ ...prev, loading: true, error: null }));
-
-    try {
-      const response = await DiagnosisService.submitAnswers(sessionId, answers);
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        step: 'evidence',
-        view: response.result,
-      }));
-    } catch (error) {
-      setState(prev => ({ ...prev, loading: false, error: messageOf(error, 'Could not update with your answers') }));
-    }
-  }, [state.sessionId]);
-
-  const finalize = useCallback(async () => {
+  const finalize = useCallback(async (checked: string[]) => {
     const sessionId = state.sessionId;
     if (!sessionId) {
       setState(prev => ({ ...prev, error: 'No active session ID available' }));
@@ -80,7 +54,7 @@ export const useDiagnosis = () => {
     setState(prev => ({ ...prev, loading: true, error: null, step: 'summary' }));
 
     try {
-      const response = await DiagnosisService.finalize(sessionId);
+      const response = await DiagnosisService.finalize(sessionId, checked);
       setState(prev => ({
         ...prev,
         loading: false,
@@ -103,8 +77,6 @@ export const useDiagnosis = () => {
     error: state.error,
     sessionId: state.sessionId,
     startDiagnosis,
-    goToQuestions,
-    submitAnswers,
     finalize,
     reset,
   };

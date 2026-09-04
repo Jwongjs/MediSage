@@ -4,7 +4,6 @@
 export type Importance = 'strong' | 'moderate' | 'weak';
 export type EvidenceStatus = 'supported' | 'contradicted' | 'not_mentioned';
 export type CriterionKind = 'symptom' | 'history' | 'lab' | 'imaging' | 'demographic';
-export type Answer = 'yes' | 'no' | 'unsure';
 
 export interface Criterion {
   key: string;
@@ -48,7 +47,6 @@ export interface DiagnosisView {
   canonical: Criterion[];
   matrix: Record<string, Record<string, Importance>>;
   judgements: Record<string, Judgement>;
-  open_questions: string[];
   grounded: Record<string, boolean>;
   explanations: Record<string, Explanation | null>;
   summary: Summary | null;

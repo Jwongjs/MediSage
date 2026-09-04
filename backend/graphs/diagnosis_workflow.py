@@ -4,22 +4,11 @@ import logging
 
 from langgraph.graph import StateGraph, END
 
-from diagnosis.hpo import load_hpo
 from diagnosis.merge import merge_profiles
-from diagnosis.ranking import rank, open_questions
+from diagnosis.ranking import rank
 from schemas.diagnosis_schemas import DiagnosisState
 
 logger = logging.getLogger(__name__)
-
-_hpo = None
-
-
-def _get_hpo():
-    global _hpo
-    if _hpo is None:
-        _hpo = load_hpo()
-        logger.info("HPO index loaded with %d terms", len(_hpo.labels))
-    return _hpo
 
 
 class MergeRankNode:
@@ -27,11 +16,7 @@ class MergeRankNode:
 
     async def __call__(self, state: dict) -> dict:
         profiles = state.get("profiles", {})
-        # Embedding fallback is disabled: merge.py embeds every HPO label
-        # serially when a symptom misses the exact index (19,836 terms, twice
-        # per request). Needs precomputed vectors before it can be enabled.
-        # Unmatched symptoms take LOCAL: keys until then.
-        result = await merge_profiles(profiles, _get_hpo())
+        result = await merge_profiles(profiles)
 
         judgements = state.get("judgements", {}) or {}
         candidates = state.get("candidates", [])
@@ -47,9 +32,6 @@ class MergeRankNode:
         state["matrix"] = result.matrix
         state["ranking"] = rank(ranking_matrix, judgements)
         state["not_evaluated"] = not_evaluated
-        state["open_questions"] = open_questions(
-            result.canonical, ranking_matrix, judgements, evaluated
-        )
         state["stage"] = "ranked"
         return state
 

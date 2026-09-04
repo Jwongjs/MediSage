@@ -11,8 +11,6 @@ const DiagnosisFunction: React.FC = () => {
     error,
     sessionId,
     startDiagnosis,
-    goToQuestions,
-    submitAnswers,
     finalize,
     reset
   } = useDiagnosis();
@@ -27,8 +25,6 @@ const DiagnosisFunction: React.FC = () => {
           error={error}
           sessionId={sessionId}
           onStart={startDiagnosis}
-          onAnswerQuestions={goToQuestions}
-          onSubmitAnswers={submitAnswers}
           onFinalize={finalize}
           onReset={reset}
         />

@@ -8,7 +8,7 @@ from diagnosis.merge import Criterion
 from knowledge.interface import Explanation
 
 Stage = str  # started | differential_complete | profiles_complete |
-             # evidence_complete | ranked | awaiting_answers | complete
+             # evidence_complete | ranked | complete
 
 __all__ = ["Criterion", "Explanation", "Judgement", "Summary", "DiagnosisState", "Stage"]
 
@@ -43,8 +43,6 @@ class DiagnosisState(TypedDict, total=False):
 
     ranking: list[list[str]]
     not_evaluated: list[str]
-    open_questions: list[str]
-    answers: dict[str, str]          # criterion key -> yes | no | unsure
 
     summary: Summary | None
     steps: list[dict]

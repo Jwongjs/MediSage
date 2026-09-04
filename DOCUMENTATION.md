@@ -24,11 +24,10 @@ POST /diagnosis/start
    ├─ Node B  criteria profiles ........ LLM, N calls, parallel, cached
    ├─ merge_rank_pre ................... deterministic  (builds the criterion set)
    ├─ Node C  evidence ................. LLM, 1 call (chunked above 40 criteria)
-   ├─ merge_rank ....................... deterministic  (ranking + open questions)
+   ├─ merge_rank ....................... deterministic  (ranking)
    └─ interrupt_before=["summary"]  ◀── returns to the client here
 
-POST /diagnosis/{id}/answers  → re-runs merge_rank out of band, rewrites state
-POST /diagnosis/{id}/finalize → resumes into summary
+POST /diagnosis/{id}/finalize → reconciles checked symptoms, re-ranks, resumes into summary
 POST /patient/export_report   → renders the evidence table as PDF or Word
 ```
 
@@ -43,9 +42,10 @@ guarantee for simplicity and zero added latency/cost. See §6 for the
 consequence. `summary` reuses the same per-session result for the top
 diagnosis instead of asking again.
 
-`interrupt_before=["summary"]` is why `/answers` runs `MergeRankNode` directly
-rather than resuming the graph: a plain resume would execute only `summary` and
-ignore the answers entirely.
+`/finalize` calls `apply_checked_symptoms()` and `rank()` directly and writes
+the result via `aupdate_state()` before resuming the graph — `interrupt_before`
+only pauses before `summary`, so a plain resume alone would skip
+reconciliation and rank on stale judgements.
 
 ### State
 
@@ -63,7 +63,6 @@ never written to disk.
 | `judgements` | `criterion key → {status, evidence, source}` |
 | `ranking` | `list[list[str]]` — inner lists are ties |
 | `not_evaluated` | candidates whose profile could not be built |
-| `open_questions` | criterion keys, most discriminating first |
 | `steps` | one replay entry per interaction |
 
 `canonical` holds real `Criterion` **dataclasses**, not dicts. Do not redeclare
@@ -82,10 +81,6 @@ rendered.
 ```bash
 grep -rn "diagnosis_confidence\|average_confidence\|final_confidence\|confidence_score" \
   backend/ my-app/src/ --include=*.py --include=*.ts --include=*.tsx
-```
-`split_rank` orders *questions* and must never reach the client:
-```bash
-grep -rn "split_rank" backend/api/
 ```
 
 **2.2 Node B never sees patient text.** If the presentation is in context while
@@ -115,9 +110,9 @@ the criterion.
 
 | Path | Responsibility |
 |---|---|
-| `backend/diagnosis/hpo.py` | HPO index; `normalize`, `strip_prose`, `lookup` |
+| `backend/diagnosis/hpo.py` | **dead** — HPO ontology matching, unused since 2026-09-04 (see §8) |
 | `backend/diagnosis/merge.py` | canonicalisation, the diagnosis×criterion matrix |
-| `backend/diagnosis/ranking.py` | lexicographic ranking, tie groups, `split_rank` |
+| `backend/diagnosis/ranking.py` | lexicographic ranking, tie groups |
 | `backend/knowledge/interface.py` | corpus retrieval seam (Node B grounding), no LLM — the only import surface |
 | `backend/nodes/differential_node.py` | Node A — candidates + ungrounded plain-language definitions |
 | `backend/nodes/profile_node.py` | Node B + process-wide profile cache |
@@ -139,18 +134,12 @@ lexicographic comparison of an 8-field tuple — no weights, no arithmetic:
 ```
 
 `weak_missing` is deliberately absent. Ties are returned as groups and **must
-render at equal rank** — that visibility is what motivates answering questions.
+render at equal rank** — that visibility is what motivates checking more symptoms.
 
 An empty tally is `(0,)*8` — **neutral, not last**. A candidate with no criteria
 would therefore outrank one whose criteria are merely unconfirmed, so
 `MergeRankNode` excludes them from `ranking` and returns them in
 `not_evaluated`. Do not "fix" this in the tuple.
-
-### Question ordering
-
-`split_rank = min(|present|, |candidates| - |present|) × mean importance` — zero
-when a criterion is in all or no candidates, maximal at an even split. It is an
-ordering key for the question list, never a property of a diagnosis.
 
 ### Profile cache
 
@@ -170,8 +159,7 @@ full-entropy, server-generated, and ignored if a client supplies one.
 | Method | Path | Body | Returns |
 |---|---|---|---|
 | POST | `/diagnosis/start` | form `patient_text` | `{session_id, result}` |
-| POST | `/diagnosis/{id}/answers` | JSON `{key: "yes"\|"no"\|"unsure"}` | `{result}` |
-| POST | `/diagnosis/{id}/finalize` | — | `{result}` |
+| POST | `/diagnosis/{id}/finalize` | JSON `{checked: [criterion key, ...]}` | `{result}` |
 | POST | `/patient/export_report` | form `session_id`, `format`, `include_details` | file stream |
 | GET | `/health` | — | probes the LLM |
 | GET | `/debug/routes` | — | route list |
@@ -185,11 +173,24 @@ also what a client sees after a restart, since state is in-process.
 ## 5. Testing
 
 ```bash
-cd backend && python -m pytest tests/     # 129 tests
+cd backend && python -m pytest tests/     # 107 tests
 cd my-app  && npx tsc --noEmit && npx vite build
 ```
 
-There is **no frontend test runner**, by design. Do not add one.
+There is **no frontend test runner**, by design. Do not add one. The one
+deliberate exception: `my-app/src/lib/ranking.ts` is correctness-critical
+business logic (a hand-written TypeScript port of `ranking.py`'s tally/rank,
+with no shared source of truth between the two languages), so it gets a
+narrow carve-out using Node's own built-in runner — no new dependency.
+
+```bash
+cd my-app && node --experimental-strip-types --import ./ts-test-loader.mjs --test src/lib/ranking.test.ts
+```
+
+`ts-test-loader.mjs` exists only because TypeScript 4.9.5 (`moduleResolution:
+"node"`) rejects a `.ts`-extension import, while Node's own ESM resolver
+refuses to guess an extension for an extensionless one — the loader retries
+extensionless relative imports with `.ts` appended so both sides are happy.
 
 `tests/test_rag_embedder.py` has two tests that call a live API and are
 rate-limit flaky; deselect them for a deterministic count.
@@ -203,23 +204,28 @@ accuracy metric.
 
 ## 6. Known limitations
 
-- **Lost update on `/answers`.** It reads state, recomputes and writes back with
+- **Lost update on `/finalize`.** It reads state, recomputes and writes back with
   no compare-and-set, and `DiagnosisState` has no reducers, so concurrent
-  submissions discard one — and the losing request still returns 200. The picker
-  holds an in-flight latch against double-clicks; two tabs remain unhandled.
+  submissions discard one — and the losing request still returns 200. The results
+  page disables its Finish button while a request is in flight, which covers
+  double-clicks; two tabs remain unhandled.
 - **Single worker only.** In-process state; a second worker 404s sessions it did
   not start.
-- **HPO resolution is ~35%** on real Node B output. The remaining gap is Node B
-  emitting prose (`"Presence of nausea"`) where HPO names concepts; the fix is a
-  prompt change, not embeddings.
-- **The embedding fallback is disabled.** `merge.py` would embed all 19,836 HPO
-  labels serially per call. Needs precomputed vectors first.
 - **The OPQRST alternative path (spec §12.3) was never built.**
 - **`plain_label` has no independent quality check.** It is Node B's own
   rewrite of its own `description`, not a separately-graded output, so a
   plain label that quietly loses the clinical specificity of its source
   criterion (e.g. broadens "McBurney's point tenderness" into generic
   "belly pain") would not be caught by anything in the pipeline today.
+- **`importance` (strong/moderate/weak) is an unverified Node B judgment
+  call, and it directly drives ranking.** The prompt gives a one-line rubric
+  and the model applies it per criterion while writing the profile, before
+  any patient text exists — nothing downstream checks that call. It is
+  sometimes grounded by retrieved corpus passages and sometimes not (see
+  `grounded` in §1), and either way it is cached and reused for every
+  session, never personalised. `ranking.py`'s `sort_key()` uses `importance`
+  to place each criterion in its lexicographic tuple, so a mis-tagged
+  criterion does not just mislabel the UI, it can change rank order.
 - **The consumer definition is fully ungrounded LLM output — the one field in
   this pipeline with no sourcing, no verification, and no structural check of
   any kind.** Node A is asked for a plain-language definition of each
@@ -259,6 +265,13 @@ Not deleted, so that greps do not mislead you into thinking it is live:
 - `backend/models/ai_schema.py`, `backend/nodes/old_version_ref/` — same era.
 - `backend/test/` (singular) — old GPU/CUDA scripts. The live suite is
   `backend/tests/` (plural); `pytest.ini` scopes to it.
+- `backend/diagnosis/hpo.py` (ontology matching only — `normalize()` moved to
+  `merge.py` and is live) and `backend/data/hp.obo` — HPO-based canonicalization,
+  replaced 2026-09-04 by exact-text matching in `merge.py`. Superseded because
+  live-measured resolution topped out at 52% even after prompt tuning; the
+  misses were checked directly against `hp.obo` and several concepts (e.g.
+  "Rebound tenderness") don't exist under any phrasing. See
+  `docs/superpowers/specs/2026-09-04-direct-symptom-selection-design.md`.
 - `backend_reference_example/` — a reference copy at the repo root.
 - `GPU_ACCELERATION_GUIDE.md` (root and `backend/`) and `how-to-run.txt` —
   **actively misleading.** `how-to-run.txt` instructs you to download an 8 GB

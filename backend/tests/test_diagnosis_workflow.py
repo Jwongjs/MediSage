@@ -6,7 +6,7 @@ from graphs.diagnosis_workflow import MergeRankNode
 from diagnosis.merge import Criterion
 
 
-async def test_merge_rank_node_populates_matrix_ranking_and_questions():
+async def test_merge_rank_node_populates_matrix_and_ranking():
     state = {
         "profiles": {
             "Appendicitis": [
@@ -25,29 +25,7 @@ async def test_merge_rank_node_populates_matrix_ranking_and_questions():
     assert len(out["canonical"]) == 3
     assert isinstance(out["ranking"], list)
     assert isinstance(out["ranking"][0], list)
-
-
-async def test_merge_rank_node_excludes_judged_criteria_from_questions():
-    # Differs from the plan: the plan gave B an EMPTY profile, which under
-    # Correction B makes B not_evaluated, leaving one rankable candidate and
-    # therefore zero discriminating questions (split is always 0). Both
-    # candidates get criteria here so the test measures what it claims.
-    state = {
-        "profiles": {
-            "A": [{"text": "Fever", "importance": "strong", "kind": "symptom"}],
-            "B": [{"text": "Headache", "importance": "strong", "kind": "symptom"}],
-        },
-        "candidates": ["A", "B"],
-        "judgements": {},
-    }
-    out = await MergeRankNode()(state)
-    first_pass = len(out["open_questions"])
-    assert first_pass == 2
-
-    key = out["canonical"][0].key
-    state["judgements"] = {key: {"status": "supported", "evidence": "x", "source": "patient_answer"}}
-    out2 = await MergeRankNode()(state)
-    assert len(out2["open_questions"]) == first_pass - 1
+    assert "open_questions" not in out
 
 
 async def test_ranking_never_emits_a_numeric_score():

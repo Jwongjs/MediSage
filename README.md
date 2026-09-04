@@ -39,7 +39,7 @@ Ranking is a **lexicographic comparison of evidence tallies**: no weights, no
 arithmetic, nothing calibratable. A contradicted core criterion is the strongest
 evidence against a candidate, so it leads. **Ties are preserved, not broken**,
 because "what you have told us does not separate these" is the honest statement,
-and it is what motivates answering the next question.
+and it is what motivates checking more symptoms.
 
 ## How it works
 
@@ -51,12 +51,10 @@ symptoms
    |
    v
 [A] differential --> [B] criteria profiles --> merge --> [C] evidence --> rank --> summary
-      (strong)          (per candidate,       (HPO         (one batched   (lexico-   |
-       1 call            cached, parallel)   canonical-     call over all   graphic)  v
-                                             isation)       criteria)             download
+      (strong)          (per candidate,      (exact-text    (one batched   (lexico-   |
+       1 call            cached, parallel)    dedup)         call over all  graphic)   v
+                                                              criteria)             download
                                                                                  PDF / Word
-                                              ^                                      |
-                                              +-------- your yes / no answers <-------+
 ```
 
 - **Node A, differential.** Candidate conditions from the symptom text, plus a
@@ -70,17 +68,22 @@ symptoms
   did, it would write criteria that fit the presentation and every criterion
   would come back "supported". The isolation is structural, not a prompt
   instruction, and a test fails if it is ever broken.
-- **Merge (deterministic).** Criteria are canonicalised against the
-  [Human Phenotype Ontology](https://hpo.jax.org/) so the same underlying
-  symptom is not judged twice under different candidates.
+- **Merge (deterministic).** Criteria are deduped on exact normalized text
+  (lowercased, punctuation stripped, leading article dropped) so the same
+  underlying symptom is not judged twice under different candidates. No
+  ontology, no embeddings: two criteria merge only when their normalized
+  text is identical, which keeps a repeated fact's verdict consistent
+  instead of letting the model re-answer a near-identical ask differently
+  each time it's asked.
 - **Node C, evidence.** One batched call judges every merged criterion. Every
   `supported` or `contradicted` verdict must quote the patient **verbatim**, and
   a quote that cannot be located in their text is rejected with the criterion
   downgraded. The key set is fixed by the merge stage, so keys the model invents
   are discarded and keys it omits default to unaddressed.
-- **Rank and ask (deterministic).** Candidates are ordered lexicographically.
-  Open questions are ordered by how much answering them could actually reorder
-  the differential.
+- **Rank (deterministic).** Candidates are ordered lexicographically, no
+  weights or arithmetic. There is no separate question-ordering step: the
+  user just checks whichever symptoms apply on the results page, and the
+  ranking updates live.
 - **Download.** The evidence table exports to PDF or Word. A ranked differential
   with quoted evidence and explicit information gaps is a better clinician
   handoff than generated prose.
@@ -91,7 +94,6 @@ symptoms
 |-------|--------|
 | API | Python 3.11, FastAPI, LangGraph |
 | LLM | Groq, OpenAI-compatible, model set by `LLM_MODEL` |
-| Ontology | Human Phenotype Ontology (`hp.obo`, fetched at build time) |
 | Consumer definitions | LLM-generated alongside the differential, ungrounded — the one unsourced field in the app |
 | State | `MemorySaver`, in-process, deliberately not persisted |
 | Frontend | React 18, Vite, Tailwind CSS + shadcn/ui |
@@ -114,17 +116,6 @@ docker compose up --build
 | Frontend | http://localhost:3000 |
 | Backend API | http://localhost:8000 |
 | API docs (Swagger) | http://localhost:8000/docs |
-
-The Docker build fetches the ontology automatically. For a non-Docker run, fetch
-it yourself:
-
-```bash
-mkdir -p backend/data
-curl -L -o backend/data/hp.obo https://purl.obolibrary.org/obo/hp.obo
-```
-
-If it is absent the app still runs, but criteria fall back to local keys, which
-degrades merge quality without breaking anything.
 
 ### Required environment variables
 
@@ -163,14 +154,16 @@ cd my-app && npm install && npm run dev                                       # 
 MediSage/
 ├── backend/                 FastAPI + LangGraph
 │   ├── api/                 diagnosis + export routes
-│   ├── diagnosis/           HPO index, criterion merge, ranking  (no LLM)
+│   ├── diagnosis/           criterion merge, ranking, finalize  (no LLM;
+│   │                        hpo.py archived, no longer used)
 │   ├── knowledge/           retrieval seam + stub corpus
 │   ├── graphs/              the diagnosis workflow
 │   ├── nodes/               differential, profile, evidence, summary
 │   ├── llm/                 LLM client (Groq / OpenAI-compatible)
 │   ├── schemas/             state model
 │   ├── migrations/          SQL history (nothing is written at runtime)
-│   ├── data/                hp.obo (gitignored) + criteria corpus
+│   ├── data/                criteria corpus (hp.obo also present, gitignored,
+│   │                        kept only for the archived hpo.py)
 │   ├── tests/               pytest suite
 │   ├── config.py · main.py
 │   └── Dockerfile
