@@ -11,7 +11,7 @@ export const Footer: React.FC = () => (
           <span className="font-bold tracking-tight">MediSage</span>
         </div>
         <p className="text-xs text-muted-foreground max-w-sm leading-relaxed">
-          AI-assisted health guidance. For educational purposes only, not a substitute
+          AI-assisted health guidance. For educational purposes only — not a substitute
           for professional medical advice, diagnosis, or treatment.
         </p>
       </div>

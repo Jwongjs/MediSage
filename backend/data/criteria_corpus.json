@@ -1,9 +1,0 @@
-{
-  "appendicitis": [
-    {"id": "sp-appendicitis-1", "source": "statpearls", "text": "Acute appendicitis classically presents with periumbilical pain that migrates to the right lower quadrant. Anorexia is present in most patients. Nausea and vomiting typically follow the onset of pain rather than preceding it. Low-grade fever may develop as the condition progresses. Rebound tenderness and guarding at McBurney point are characteristic findings."},
-    {"id": "sp-appendicitis-2", "source": "statpearls", "text": "Diarrhea is uncommon in appendicitis and its presence should prompt consideration of alternative diagnoses such as gastroenteritis. Leukocytosis with a left shift is typical."}
-  ],
-  "acute gastroenteritis": [
-    {"id": "sp-gastro-1", "source": "statpearls", "text": "Acute gastroenteritis presents with diarrhea, which is the defining feature, frequently accompanied by nausea, vomiting, and diffuse abdominal cramping. Low-grade fever is common. A history of shared food exposure or similarly affected household contacts strongly supports the diagnosis."}
-  ]
-}
