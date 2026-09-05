@@ -28,6 +28,11 @@ def parse_diagnosis_details(raw_response: str) -> list[TextualSymptomAnalysisRes
     return results
 
 
+def parse_initial_reasoning(raw_response: str) -> str:
+    match = re.search(r"-\s*Reasoning:\s*(.+)", raw_response, re.IGNORECASE | re.DOTALL)
+    return match.group(1).strip() if match else ""
+
+
 class LLMDiagnosisNode:
     async def __call__(self, state: dict) -> dict:
         state["current_workflow_stage"] = "textual_analysis"
@@ -64,7 +69,9 @@ class LLMDiagnosisNode:
                     "List 5 most possible diagnoses in this exact format ONLY:\n"
                     "- Diagnosis: <name>\n"
                     "- Confidence: <0.0-1.0>\n\n"
-                    "Repeat for each diagnosis. List from most likely to least likely."
+                    "Repeat for each diagnosis. List from most likely to least likely.\n\n"
+                    "After the list, add one final line:\n"
+                    "- Reasoning: <one or two sentences on why the top diagnosis best fits the reported symptoms>"
                 ),
             },
         ]
@@ -73,6 +80,7 @@ class LLMDiagnosisNode:
         parsed_diagnosis = parse_diagnosis_details(output)
 
         state["textual_analysis"] = parsed_diagnosis
+        state["initial_diagnosis_reasoning"] = parse_initial_reasoning(output)
         confidences = [d["diagnosis_confidence"] for d in parsed_diagnosis]
         state["average_confidence"] = sum(confidences) / len(confidences) if confidences else 0.0
         return state
