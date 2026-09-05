@@ -2,12 +2,13 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 import { Check } from 'lucide-react';
 
-export type DiagnosisStage = 'symptoms' | 'evidence' | 'summary';
+export type DiagnosisStage = 'symptoms' | 'analysis' | 'followup' | 'report';
 
 const STAGES: { id: DiagnosisStage; label: string }[] = [
-  { id: 'symptoms', label: 'Symptoms' },
-  { id: 'evidence', label: 'Evidence' },
-  { id: 'summary',  label: 'Summary'  },
+  { id: 'symptoms', label: 'Symptoms'  },
+  { id: 'analysis', label: 'Analysis'  },
+  { id: 'followup', label: 'Follow-up' },
+  { id: 'report',   label: 'Report'    },
 ];
 
 interface DiagnosisProgressProps {
