@@ -98,12 +98,23 @@ class OverallAnalysisNode:
         """Mild/moderate cases route through a GP first rather than having the AI send
         patients straight to a specialist off its own reasoning; the specialist guess is
         kept as context for that GP visit. Severe/critical pass the specialist through directly."""
-        specialist_title = (specialist or "general practitioner").replace("_", " ").strip().title()
+        specialist_display = self._format_specialist(specialist)
         if severity in {"mild", "moderate"}:
-            if specialist_title.lower() == "general practitioner":
+            if specialist_display.lower() == "general practitioner":
                 return "General Practitioner"
-            return f"General Practitioner (may refer you to a {specialist_title} if needed)"
-        return specialist_title
+            article = "an" if specialist_display[:1].lower() in "aeiou" else "a"
+            return f"General Practitioner, who may refer you to {article} {specialist_display} if needed"
+        return specialist_display
+
+    def _format_specialist(self, specialist: str) -> str:
+        """Only snake_case fallback values (e.g. "general_practitioner") need reformatting.
+        Free text from the LLM (e.g. "Otolaryngologist (ENT)") is left alone: .title()-ing it
+        would lowercase every letter of "ENT" but the first, since title-case has no concept
+        of acronyms."""
+        specialist = (specialist or "general practitioner").strip()
+        if "_" in specialist:
+            specialist = specialist.replace("_", " ").title()
+        return specialist[:1].upper() + specialist[1:] if specialist else specialist
 
     def _fallback_analysis(self, state: Dict[str, Any]) -> Dict[str, Any]:
         textual_analysis = state.get("textual_analysis", [])
