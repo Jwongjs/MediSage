@@ -82,16 +82,29 @@ class OverallAnalysisNode:
 
         if severity.lower() not in {"mild", "moderate", "severe", "critical"}:
             severity = "moderate"
+        severity = severity.lower()
 
         return {
             "final_diagnosis": primary_diagnosis.get("text_diagnosis", "Unknown"),
             "final_confidence": primary_diagnosis.get("diagnosis_confidence", 0.0) or 0.0,
-            "final_severity": severity.lower(),
+            "final_severity": severity,
             "user_explanation": user_explanation,
             "clinical_reasoning": clinical_reasoning,
             "specialist_recommendation": specialist,
+            "recommended_care_path": self._recommended_care_path(severity, specialist),
         }
-        
+
+    def _recommended_care_path(self, severity: str, specialist: str) -> str:
+        """Mild/moderate cases route through a GP first rather than having the AI send
+        patients straight to a specialist off its own reasoning; the specialist guess is
+        kept as context for that GP visit. Severe/critical pass the specialist through directly."""
+        specialist_title = (specialist or "general practitioner").replace("_", " ").strip().title()
+        if severity in {"mild", "moderate"}:
+            if specialist_title.lower() == "general practitioner":
+                return "General Practitioner"
+            return f"General Practitioner (may refer you to a {specialist_title} if needed)"
+        return specialist_title
+
     def _fallback_analysis(self, state: Dict[str, Any]) -> Dict[str, Any]:
         textual_analysis = state.get("textual_analysis", [])
         primary = textual_analysis[0] if textual_analysis else {}
@@ -102,4 +115,5 @@ class OverallAnalysisNode:
             "user_explanation": "Unable to complete full analysis.",
             "clinical_reasoning": "Analysis encountered an error.",
             "specialist_recommendation": "general_practitioner",
+            "recommended_care_path": "General Practitioner",
         }

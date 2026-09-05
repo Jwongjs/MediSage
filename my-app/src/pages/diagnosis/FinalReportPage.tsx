@@ -128,12 +128,12 @@ export const FinalReportPage: React.FC<FinalReportPageProps> = ({
               <p className="text-sm text-muted-foreground leading-relaxed">{analysis.clinical_reasoning}</p>
             </div>
           )}
-          {analysis.specialist_recommendation && (
+          {analysis.recommended_care_path && (
             <>
               <Separator />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Recommended specialist</p>
-                <Badge variant="outline" className="text-xs">{analysis.specialist_recommendation}</Badge>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide shrink-0">Recommended care</p>
+                <Badge variant="outline" className="text-xs text-right">{analysis.recommended_care_path}</Badge>
               </div>
             </>
           )}
