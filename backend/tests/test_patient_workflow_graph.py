@@ -74,11 +74,13 @@ async def test_low_confidence_diagnosis_routes_to_followup():
 
 
 @pytest.mark.asyncio
-async def test_high_confidence_diagnosis_routes_to_overall_analysis():
+async def test_high_confidence_diagnosis_also_routes_to_followup():
+    """Routing after the initial diagnosis no longer branches on confidence:
+    every session goes through follow-up questions regardless."""
     graph, config, result, _ = await _invoke_diagnosis(
         LLM_OUTPUT_HIGH_CONFIDENCE, "test-session-3"
     )
 
     assert result["average_confidence"] == pytest.approx(0.875)
     snapshot = await graph.aget_state(config)
-    assert list(snapshot.next) == ["overall_analysis"]
+    assert list(snapshot.next) == ["generate_followup_questions"]

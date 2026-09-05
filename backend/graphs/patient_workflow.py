@@ -2,17 +2,6 @@ from __future__ import annotations
 from langgraph.graph import StateGraph, END
 from schemas.medical_schemas import AgentState
 
-CONFIDENCE_THRESHOLD = 0.75
-
-
-def _route_after_diagnosis(state: AgentState) -> str:
-    confidence = state.get("average_confidence")
-    if confidence is None:
-        confidence = 1.0
-    if confidence < CONFIDENCE_THRESHOLD:
-        return "generate_followup_questions"
-    return "overall_analysis"
-
 
 def _route_after_followup(state: AgentState) -> str:
     if state.get("requires_user_input", False):
@@ -52,14 +41,7 @@ def compile_patient_workflow(checkpointer):
     workflow.add_node("overall_analysis", OverallAnalysisNode())
     workflow.add_node("medical_report", MedicalReportNode())
 
-    workflow.add_conditional_edges(
-        "llm_diagnosis",
-        _route_after_diagnosis,
-        {
-            "generate_followup_questions": "generate_followup_questions",
-            "overall_analysis": "overall_analysis",
-        },
-    )
+    workflow.add_edge("llm_diagnosis", "generate_followup_questions")
     workflow.add_edge("generate_followup_questions", "process_followup_responses")
     workflow.add_conditional_edges(
         "process_followup_responses",

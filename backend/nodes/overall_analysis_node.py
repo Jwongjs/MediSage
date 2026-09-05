@@ -23,16 +23,7 @@ class OverallAnalysisNode:
     
     async def perform_overall_analysis(self, state: Dict[str, Any]) -> Dict[str, Any]:
         try:
-            workflow_path = state.get("workflow_path", [])
-            logger.info(f"Workflow path: {workflow_path}")
-
-            if "followup_only" in workflow_path:
-                enhanced_analysis = await self._analyze_textual_and_followup(state)
-            elif workflow_path == ["textual_only"]:
-                enhanced_analysis = await self._analyze_textual_only(state)
-            else:
-                enhanced_analysis = await self._analyze_fallback(state)
-
+            enhanced_analysis = await self._analyze_textual_and_followup(state)
             state["overall_analysis"] = enhanced_analysis
             logger.info(f"Overall analysis complete: {enhanced_analysis.get('final_diagnosis', 'Unknown')}")
             return state
@@ -41,39 +32,7 @@ class OverallAnalysisNode:
             logger.error(f"Overall analysis error: {e}")
             state["overall_analysis"] = self._fallback_analysis(state)
             return state
-    
-    async def _analyze_textual_only(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        userInput_symptoms = state.get("userInput_symptoms", "")
-        textual_analysis = state.get("textual_analysis", [])
 
-        if not textual_analysis:
-            raise ValueError("No textual analysis available")
-
-        primary_diagnosis = textual_analysis[0]
-        diagnosis = primary_diagnosis.get("text_diagnosis", "Unknown")
-        confidence = primary_diagnosis.get("diagnosis_confidence", 0.0) or 0.0
-
-        messages = [
-            {"role": "system", "content": _SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": (
-                    f"MEDICAL ANALYSIS\n\n"
-                    f"CONFIRMED DIAGNOSIS: {diagnosis} (Confidence: {confidence:.2f})\n"
-                    f"Original Symptoms: {userInput_symptoms}\n\n"
-                    f"Provide output in this EXACT format:\n"
-                    f"- Severity: <mild/moderate/severe/critical>\n"
-                    f"- User Explanation: <Simple definition of {diagnosis} and its main causes>\n"
-                    f"- Clinical Reasoning: <detailed medical justification>\n"
-                    f"- Specialist: <most appropriate specialist type>\n\n"
-                    f"Keep User Explanation around 50 words. Keep Clinical Reasoning under 60 words."
-                ),
-            },
-        ]
-
-        assessment_text = await llm_client.complete(messages, max_tokens=1000, temperature=0.3)
-        return self._parse_enhanced_analysis(assessment_text, primary_diagnosis)
-    
     async def _analyze_textual_and_followup(self, state: Dict[str, Any]) -> Dict[str, Any]:
         followup_qna = state.get("followup_qna_overall", "")
         followup_diagnosis = state.get("followup_diagnosis", [])
