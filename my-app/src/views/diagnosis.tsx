@@ -1,9 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { WorkflowRouter } from 'WorkflowRouter';
 import { useDiagnosis } from 'hooks/useDiagnosis';
 import { PageLayout } from 'components/layout/PageLayout';
+import { ConsentGateModal } from 'components/medical/ConsentGateModal';
 
 const DiagnosisFunction: React.FC = () => {
+  const navigate = useNavigate();
+  // No account exists to remember a prior agreement against, so this gate is
+  // in-memory only (no localStorage) and is reset alongside the workflow
+  // itself: it reappears at the start of every diagnosis session, not just
+  // once per browser.
+  const [agreed, setAgreed] = useState(false);
+
   const {
     loading,
     result,
@@ -16,6 +25,11 @@ const DiagnosisFunction: React.FC = () => {
     continueToNextStep,
     reset
   } = useDiagnosis();
+
+  const handleReset = () => {
+    reset();
+    setAgreed(false);
+  };
 
 const handleStartDiagnosis = async (symptoms: string) => {
   try {
@@ -59,6 +73,12 @@ const handleSubmitFollowUp = async (responses: Record<string, string>) => {
 
   return (
     <PageLayout>
+      {!agreed && (
+        <ConsentGateModal
+          onAccept={() => setAgreed(true)}
+          onCancel={() => navigate('/')}
+        />
+      )}
       <div className="container mx-auto max-w-3xl px-4 py-8 space-y-8">
         <WorkflowRouter
           workflowState={result}
@@ -69,7 +89,7 @@ const handleSubmitFollowUp = async (responses: Record<string, string>) => {
           onStartDiagnosis={handleStartDiagnosis}
           onContinue={handleContinueToNext}
           onSubmitFollowUp={handleSubmitFollowUp}
-          onReset={reset}
+          onReset={handleReset}
         />
         <p className="text-xs text-center text-muted-foreground">
           MediSage provides AI-assisted guidance for educational purposes and does not replace professional medical care.
