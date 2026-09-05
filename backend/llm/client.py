@@ -14,8 +14,9 @@ def _to_lc_message(msg: dict):
 
 
 class LLMClient:
-    def __init__(self):
+    def __init__(self, model: str | None = None):
         self._llm = None
+        self._model = model
 
     @property
     def llm(self):
@@ -25,7 +26,7 @@ class LLMClient:
         # lazy init the module imports cleanly and only fails if actually called.
         if self._llm is None:
             self._llm = ChatGroq(
-                model=os.getenv("LLM_MODEL", "openai/gpt-oss-120b"),
+                model=self._model or os.getenv("LLM_MODEL"),
                 groq_api_key=os.getenv("LLM_API_KEY") or os.getenv("GROQ_API_KEY"),
             )
         return self._llm

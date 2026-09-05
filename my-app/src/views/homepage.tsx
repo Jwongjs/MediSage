@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import {
-  Brain, FileText, ShieldCheck,
+  Activity, Brain, FileText, ListChecks,
   ChevronRight, Clock, ArrowRight, Stethoscope,
   MessageCircle, BookOpen,
 } from 'lucide-react';
@@ -15,14 +15,14 @@ import {
 const FEATURES = [
   {
     icon: Brain,
-    title: 'AI Differential Diagnosis',
-    description: 'Describe your symptoms and receive a top-5 differential with confidence scores, layman explanations, and severity assessment.',
+    title: 'AI-Ranked Medical Differential',
+    description: 'Describe your symptoms and receive a ranked medical differential showing which criteria each condition is supported or contradicted by.',
     accent: 'text-primary bg-primary/5',
   },
   {
-    icon: Stethoscope,
-    title: 'Guided Sign Checks',
-    description: 'Targeted prompts for the signs that separate your top candidates, then adaptive follow-up questions that sharpen the result.',
+    icon: ListChecks,
+    title: 'Built to Avoid Bias',
+    description: 'The criteria for each condition are worked out before your symptoms are even considered, then checked against what you described, so nothing is bent to fit the answer.',
     accent: 'text-accent bg-accent/5',
   },
   {
@@ -52,10 +52,9 @@ const INTRO_POINTS = [
 ] as const;
 
 const STEPS = [
-  { n: '01', title: 'Complete intake',        body: 'Age, medications, allergies, history — collected once, passed to every stage.' },
-  { n: '02', title: 'Describe symptoms',      body: 'Natural language. The AI validates and flags vague or unsafe descriptions.' },
-  { n: '03', title: 'Check observable signs', body: 'LLM-generated sign prompts targeted to your differential, then 4 adaptive follow-up questions.' },
-  { n: '04', title: 'Receive your report',    body: 'Downloadable medical report with diagnosis, reasoning, severity, and next steps.' },
+  { n: '01', title: 'Describe symptoms',      body: 'Natural language. The AI validates and flags vague or unsafe descriptions.' },
+  { n: '02', title: 'Check observable signs', body: 'Sign prompts targeted to your medical differential, then follow-up questions that separate the candidates.' },
+  { n: '03', title: 'Download your report',   body: 'A report with the medical differential, the evidence behind it, severity, and next steps.' },
 ] as const;
 
 const Homepage: React.FC = () => {
@@ -105,7 +104,7 @@ const Homepage: React.FC = () => {
               className="text-lg text-muted-foreground mb-8 leading-relaxed animate-fade-in-up"
               style={{ animationDelay: '240ms' }}
             >
-              Describe your symptoms and receive a structured differential diagnosis, guided sign checks, and a downloadable medical report, in minutes.
+              Describe your symptoms and receive a structured medical differential, guided sign checks, and a downloadable medical report for your healthcare provider.
             </p>
           </div>
           <div
@@ -125,10 +124,10 @@ const Homepage: React.FC = () => {
             style={{ animationDelay: '400ms' }}
           >
             <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <ShieldCheck className="h-4 w-4 text-primary" />No account, no sign-up
+              <ListChecks className="h-4 w-4 text-primary" />See what supports each result
             </span>
             <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <FileText className="h-4 w-4 text-primary" />Your report downloads to your device
+              <FileText className="h-4 w-4 text-primary" />Report downloaded, not saved
             </span>
             <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <Clock className="h-4 w-4 text-primary" />Results in under 2 min
@@ -156,7 +155,7 @@ const Homepage: React.FC = () => {
 
       <div className="container mx-auto max-w-6xl px-4"><Separator /></div>
 
-      {/* Introduction: who MediSage is for, echoing the hero's jade wash */}
+      {/* Introduction — who MediSage is for, echoes the hero's jade wash */}
       <section className="container mx-auto max-w-6xl px-4 py-16">
         <div
           className="rounded-3xl border px-6 py-12 md:px-14 md:py-16"
@@ -183,7 +182,7 @@ const Homepage: React.FC = () => {
         </div>
       </section>
 
-      {/* How it works: same card/badge treatment as Why MediSage */}
+      {/* How it works — same card/badge treatment as Why MediSage */}
       <section className="container mx-auto max-w-6xl px-4 py-16">
         <div
           className="rounded-3xl border px-6 py-12 md:px-14 md:py-16"
@@ -193,12 +192,12 @@ const Homepage: React.FC = () => {
             How It Works
           </Badge>
           <h2 className="font-display text-2xl md:text-3xl font-medium leading-snug mb-4 max-w-2xl">
-            Four steps to clarity.
+            Three steps to clarity.
           </h2>
           <p className="text-muted-foreground max-w-2xl mb-10 leading-relaxed">
             From your first symptom to a report ready to hand your doctor.
           </p>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {STEPS.map(({ n, title, body }, i) => (
               <div key={n} className="flex flex-col gap-3">
                 <div className="flex items-center gap-3">

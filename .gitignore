@@ -2,6 +2,7 @@
 
 .vscode/
 .vs/
+my-app/.impeccable/
 GPU_ACCELERATION_GUIDE.md
 to-do.txt\
 .superpowers
@@ -51,8 +52,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -123,3 +124,5 @@ my-app/e2e/playwright-report/
 my-app/e2e/screenshots/
 my-app/e2e/test-results/
 my-app/e2e/results.xml
+
+backend/data/hp.obo

@@ -7,8 +7,18 @@ if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
+import os
+
 from dotenv import load_dotenv
 load_dotenv()
+
+# MediSage stores no patient data. LangSmith tracing would ship every node run
+# -- including the full symptom narrative -- to a third-party cloud and retain
+# it there, silently defeating that guarantee. Disabled in code rather than
+# left to a .env flag, and set before langchain/langgraph import so the
+# tracing client never activates.
+os.environ["LANGCHAIN_TRACING_V2"] = "false"
+os.environ["LANGSMITH_TRACING"] = "false"
 
 from contextlib import asynccontextmanager
 import logging
@@ -16,8 +26,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-from psycopg_pool import AsyncConnectionPool
+from langgraph.checkpoint.memory import MemorySaver
 
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -61,41 +70,29 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Redis ping failed: {e} - rate limiting uses in-memory fallback")
 
-    if not settings.SUPABASE_DB_URL:
-        raise RuntimeError("SUPABASE_DB_URL is required for workflow state persistence")
-
-    # A single long-lived connection (from_conn_string) gets dropped by Supabase's
-    # idle timeout and is never reconnected, so the first checkpoint write after an
-    # idle period fails with "the connection is closed". A pool recycles dead
-    # connections; check_connection validates liveness before each checkout.
-    # prepare_threshold=None DISABLES server-side prepared statements. This is
-    # required for Supabase's transaction-mode pooler (port 6543), which assigns
-    # a different backend connection per statement — a statement prepared on one
-    # connection won't exist on the next ("prepared statement _pg3_1 does not
-    # exist"). (prepare_threshold=0 means "prepare immediately", the opposite.)
-    connection_kwargs = {"autocommit": True, "prepare_threshold": None}
-    async with AsyncConnectionPool(
-        conninfo=settings.SUPABASE_DB_URL,
-        max_size=20,
-        kwargs=connection_kwargs,
-        check=AsyncConnectionPool.check_connection,
-        open=False,
-    ) as pool:
-        app.state.db_pool = pool
-        checkpointer = AsyncPostgresSaver(pool)
-        await checkpointer.setup()
-        from graphs.patient_workflow import compile_patient_workflow
-        app.state.patient_graph = compile_patient_workflow(checkpointer)
-        logger.info("Patient workflow graph compiled with Supabase checkpointer")
-        logger.info("Startup complete!")
-        yield
+    # MediSage is fully anonymous: it stores no health data anywhere. The
+    # checkpointer holds graph state — patient_text included — so it is
+    # deliberately in-process only. Consequences, by design:
+    #   - every in-flight session is LOST on restart, redeploy or crash, and
+    #     clients mid-flow get 404 "Session not found" on their next call;
+    #   - state is per-worker, so more than one worker requires sticky
+    #     sessions (or a single worker) or requests will land on a process
+    #     that has never heard of the session.
+    # Do not swap this back for a database-backed saver: that would put the
+    # patient's symptom text back on disk under a different name.
+    checkpointer = MemorySaver()
+    from graphs.diagnosis_workflow import compile_diagnosis_workflow
+    app.state.diagnosis_graph = compile_diagnosis_workflow(checkpointer)
+    logger.info("Diagnosis workflow graph compiled with in-memory checkpointer (no persistence)")
+    logger.info("Startup complete!")
+    yield
 
     logger.info("Shutdown complete!")
 
 
 app = FastAPI(
-    title="AI Medical Diagnosis Assistant",
-    description="Medical AI system with LangGraph workflow",
+    title="MediSage API",
+    description="AI-assisted medical differential and evidence report for pre-consultation triage. Not a certified medical device.",
     version="2.0.0",
     lifespan=lifespan,
 )
@@ -119,12 +116,14 @@ app.include_router(diagnosis_router)
 @app.get("/")
 async def root():
     return {
-        "message": "AI Medical Diagnosis API",
+        "message": "MediSage evidence-based medical differential API",
         "version": "2.0.0",
         "endpoints": {
             "health": "/health",
             "docs": "/docs",
-            "textual_analysis": "/patient/textual_analysis",
+            "start": "/diagnosis/start",
+            "finalize": "/diagnosis/{session_id}/finalize",
+            "export": "/patient/export_report",
         },
     }
 

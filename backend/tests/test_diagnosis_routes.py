@@ -1,170 +1,168 @@
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+from api.diagnosis_routes import _view, _step
+from diagnosis.merge import Criterion
+
+
+def test_view_groups_ranking_with_tie_ranks():
+    state = {
+        "ranking": [["A", "B"], ["C"]],
+        "matrix": {"A": {}, "B": {}, "C": {}},
+        "canonical": [], "judgements": {}, "grounded": {},
+    }
+    view = _view(state)
+    assert view["ranking"][0]["rank"] == 1
+    assert view["ranking"][0]["diagnoses"] == ["A", "B"]
+    assert view["ranking"][1]["rank"] == 2
+
+
+def test_view_serializes_criteria_as_dicts():
+    state = {
+        "ranking": [], "matrix": {}, "judgements": {}, "grounded": {},
+        "canonical": [Criterion("HP:1", "Fever", "symptom")],
+    }
+    assert _view(state)["canonical"] == [
+        {"key": "HP:1", "label": "Fever", "kind": "symptom", "plain_label": ""}
+    ]
+
+
+def test_view_never_leaks_a_confidence_or_score_field():
+    state = {
+        "ranking": [["A"]], "matrix": {"A": {}}, "canonical": [],
+        "judgements": {}, "grounded": {},
+    }
+    blob = str(_view(state)).lower()
+    assert "confidence" not in blob
+    assert "split_rank" not in blob
+
+
+def test_view_exposes_not_evaluated_candidates():
+    state = {
+        "ranking": [["A"]], "matrix": {"A": {}}, "canonical": [], "judgements": {},
+        "grounded": {}, "not_evaluated": ["Migraine"],
+    }
+    assert _view(state)["not_evaluated"] == ["Migraine"]
+
+
+def test_view_has_no_open_questions_key():
+    state = {
+        "ranking": [], "matrix": {}, "judgements": {}, "grounded": {}, "canonical": [],
+    }
+    assert "open_questions" not in _view(state)
+
+
+def test_step_records_ranking_without_scores():
+    state = {
+        "stage": "ranked", "ranking": [["A", "B"]], "not_evaluated": ["C"],
+    }
+    step = _step(state, "start")
+    assert step["action"] == "start"
+    assert step["ranking"] == [["A", "B"]]
+    assert step["not_evaluated"] == ["C"]
+    blob = str(step).lower()
+    assert "confidence" not in blob and "split_rank" not in blob
+
+
+# --- Endpoint-level tests over a stub graph -------------------------------
+# A minimal two-node graph with the real shape: an interrupt before `summary`,
+# so `start` leaves the checkpoint mid-run and `finalize` resumes into it.
+
+import httpx
 from fastapi import FastAPI
-from httpx import AsyncClient, ASGITransport
+from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import MemorySaver
 
-def _make_mock_pool(execute_side_effect=None):
-    """Stand in for the psycopg pool /health probes with `async with pool.connection()`."""
-    conn = AsyncMock()
-    conn.execute = AsyncMock(side_effect=execute_side_effect)
-    cm = MagicMock()
-    cm.__aenter__ = AsyncMock(return_value=conn)
-    cm.__aexit__ = AsyncMock(return_value=False)
-    pool = MagicMock()
-    pool.connection = MagicMock(return_value=cm)
-    return pool
+import api.diagnosis_routes as routes
+from schemas.diagnosis_schemas import DiagnosisState
 
 
-def _make_mock_graph(next_nodes=None, state=None):
-    mock_graph = AsyncMock()
-    mock_snapshot = MagicMock()
-    mock_snapshot.next = next_nodes or []
-    mock_snapshot.values = state or {}
-    mock_graph.aget_state = AsyncMock(return_value=mock_snapshot)
-    mock_graph.ainvoke = AsyncMock(return_value=state or {})
-    return mock_graph
+async def _prepare(state):
+    state["stage"] = "ranked"
+    state["ranking"] = [["Appendicitis"]]
+    state["canonical"] = []
+    state["matrix"] = {}
+    state["judgements"] = {}
+    return state
 
 
-@pytest.fixture
-def diag_app():
-    from api.diagnosis_routes import diagnosis_router
+async def _summary(state):
+    state["stage"] = "complete"
+    state["summary"] = {"severity": "mild", "specialist_recommendation": "GP"}
+    return state
+
+
+def _stub_app():
+    workflow = StateGraph(DiagnosisState)
+    workflow.set_entry_point("prepare")
+    workflow.add_node("prepare", _prepare)
+    workflow.add_node("summary", _summary)
+    workflow.add_edge("prepare", "summary")
+    workflow.add_edge("summary", END)
+    graph = workflow.compile(checkpointer=MemorySaver(), interrupt_before=["summary"])
 
     app = FastAPI()
-    app.include_router(diagnosis_router)
-
-    return app
-
-
-@pytest.mark.asyncio
-async def test_health_returns_healthy_when_probes_pass(diag_app):
-    # Task 7: /health actively probes the DB and LLM. Mock both so they
-    # succeed and the endpoint reports "healthy".
-    diag_app.state.db_pool = _make_mock_pool()
-    with patch("llm.client.llm_client.complete", new_callable=AsyncMock):
-        async with AsyncClient(transport=ASGITransport(app=diag_app), base_url="http://test") as client:
-            response = await client.get("/health")
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["status"] == "healthy"
-    assert body["checks"] == {"database": "ok", "llm": "ok"}
+    app.state.limiter = routes.limiter
+    app.state.diagnosis_graph = graph
+    app.include_router(routes.diagnosis_router)
+    return app, graph
 
 
-@pytest.mark.asyncio
-async def test_health_returns_degraded_when_db_probe_fails(diag_app):
-    # When a dependency is unreachable the status drops to "degraded" but the
-    # endpoint still returns 200 so load balancers get a body to inspect.
-    diag_app.state.db_pool = _make_mock_pool(execute_side_effect=RuntimeError("db down"))
-    with patch("llm.client.llm_client.complete", new_callable=AsyncMock):
-        async with AsyncClient(transport=ASGITransport(app=diag_app), base_url="http://test") as client:
-            response = await client.get("/health")
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["status"] == "degraded"
-    assert body["checks"]["database"].startswith("error")
+def _client(app):
+    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
 
 
-@pytest.mark.asyncio
-async def test_textual_analysis_returns_session_and_workflow_info(diag_app):
-    result_state = {"session_id": "s-001", "average_confidence": 0.85}
-    mock_graph = _make_mock_graph(next_nodes=["overall_analysis"], state=result_state)
-    diag_app.state.patient_graph = mock_graph
+async def test_finalize_returns_404_for_a_session_that_was_never_started():
+    app, _ = _stub_app()
+    async with _client(app) as client:
+        response = await client.post("/diagnosis/never-started/finalize")
 
-    async with AsyncClient(transport=ASGITransport(app=diag_app), base_url="http://test") as client:
-        response = await client.post(
-            "/patient/textual_analysis",
-            data={"user_symptoms": "I have a headache and fever", "session_id": "s-001"},
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Session not found"
+
+
+async def test_finalize_accepts_a_checked_symptoms_body():
+    app, graph = _stub_app()
+
+    async with _client(app) as client:
+        started = await client.post(
+            "/diagnosis/start", data={"patient_text": "belly pain"}
         )
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["success"] is True
-    assert data["session_id"] == "s-001"
-    assert "workflow_info" in data
-    assert data["workflow_info"]["workflow_complete"] is False
-
-
-@pytest.mark.asyncio
-async def test_textual_analysis_graph_error_returns_500(diag_app):
-    mock_graph = AsyncMock()
-    mock_graph.ainvoke.side_effect = RuntimeError("LLM unavailable")
-    diag_app.state.patient_graph = mock_graph
-
-    async with AsyncClient(transport=ASGITransport(app=diag_app), base_url="http://test") as client:
-        response = await client.post(
-            "/patient/textual_analysis",
-            data={"user_symptoms": "headache"},
+        session_id = started.json()["session_id"]
+        finalized = await client.post(
+            f"/diagnosis/{session_id}/finalize",
+            json={"checked": ["HP:0001945"]},
         )
+        assert finalized.status_code == 200
 
-    assert response.status_code == 500
+    config = {"configurable": {"thread_id": session_id}}
+    steps = (await graph.aget_state(config)).values["steps"]
+    assert [s["action"] for s in steps] == ["start", "finalize"]
+    assert steps[-1]["stage"] == "complete"
 
 
-@pytest.mark.asyncio
-async def test_followup_questions_without_responses_resumes_graph(diag_app):
-    result_state = {"session_id": "s-001", "followup_questions": ["Do you have a fever?"]}
-    mock_graph = _make_mock_graph(next_nodes=["process_followup_responses"], state=result_state)
-    diag_app.state.patient_graph = mock_graph
-
-    async with AsyncClient(transport=ASGITransport(app=diag_app), base_url="http://test") as client:
-        response = await client.post(
-            "/patient/followup_questions",
-            data={"session_id": "s-001"},
+async def test_answers_route_no_longer_exists():
+    app, _ = _stub_app()
+    async with _client(app) as client:
+        started = await client.post(
+            "/diagnosis/start", data={"patient_text": "belly pain"}
         )
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["success"] is True
-    mock_graph.ainvoke.assert_called_once_with(None, {"configurable": {"thread_id": "s-001"}})
-
-
-@pytest.mark.asyncio
-async def test_followup_questions_with_responses_updates_state(diag_app):
-    import json
-    result_state = {"session_id": "s-001", "requires_user_input": False}
-    mock_graph = _make_mock_graph(next_nodes=["overall_analysis"], state=result_state)
-    diag_app.state.patient_graph = mock_graph
-
-    responses = json.dumps({"q1": "Yes, I have a fever"})
-    async with AsyncClient(transport=ASGITransport(app=diag_app), base_url="http://test") as client:
+        session_id = started.json()["session_id"]
         response = await client.post(
-            "/patient/followup_questions",
-            data={"session_id": "s-001", "followup_responses": responses},
+            f"/diagnosis/{session_id}/answers", json={"k1": "yes"}
         )
-
-    assert response.status_code == 200
-    mock_graph.aupdate_state.assert_called_once()
+    assert response.status_code == 404
 
 
-@pytest.mark.asyncio
-async def test_overall_analysis_resumes_graph(diag_app):
-    result_state = {"session_id": "s-001", "overall_analysis": "Tension headache."}
-    mock_graph = _make_mock_graph(next_nodes=["medical_report"], state=result_state)
-    diag_app.state.patient_graph = mock_graph
-
-    async with AsyncClient(transport=ASGITransport(app=diag_app), base_url="http://test") as client:
-        response = await client.post(
-            "/patient/overall_analysis",
-            data={"session_id": "s-001"},
+async def test_start_ignores_a_client_supplied_session_id():
+    # With no accounts the session id is the only credential for a session, so
+    # a caller must not be able to choose it and collide with a live thread.
+    app, _ = _stub_app()
+    async with _client(app) as client:
+        r = await client.post(
+            "/diagnosis/start", data={"patient_text": "belly pain", "session_id": "attacker-chosen"}
         )
-
-    assert response.status_code == 200
-    assert response.json()["success"] is True
-
-
-@pytest.mark.asyncio
-async def test_medical_report_completes_without_auto_ingestion(diag_app):
-    result_state = {"session_id": "s-001", "medical_report": "Full report text here."}
-    mock_graph = _make_mock_graph(next_nodes=[], state=result_state)
-    diag_app.state.patient_graph = mock_graph
-
-    async with AsyncClient(transport=ASGITransport(app=diag_app), base_url="http://test") as client:
-        response = await client.post(
-            "/patient/medical_report",
-            data={"session_id": "s-001"},
-        )
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["success"] is True
-    assert data["workflow_info"]["workflow_complete"] is True
+    assert r.status_code == 200
+    issued = r.json()["session_id"]
+    assert issued != "attacker-chosen"
+    assert len(issued) == len("session_") + 32
