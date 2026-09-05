@@ -123,16 +123,40 @@ class OverallAnalysisNode:
 
         if severity.lower() not in {"mild", "moderate", "severe", "critical"}:
             severity = "moderate"
+        severity = severity.lower()
 
         return {
             "final_diagnosis": primary_diagnosis.get("text_diagnosis", "Unknown"),
             "final_confidence": primary_diagnosis.get("diagnosis_confidence", 0.0) or 0.0,
-            "final_severity": severity.lower(),
+            "final_severity": severity,
             "user_explanation": user_explanation,
             "clinical_reasoning": clinical_reasoning,
             "specialist_recommendation": specialist,
+            "recommended_care_path": self._recommended_care_path(severity, specialist),
         }
-        
+
+    def _recommended_care_path(self, severity: str, specialist: str) -> str:
+        """Mild/moderate cases route through a GP first rather than having the AI send
+        patients straight to a specialist off its own reasoning; the specialist guess is
+        kept as context for that GP visit. Severe/critical pass the specialist through directly."""
+        specialist_display = self._format_specialist(specialist)
+        if severity in {"mild", "moderate"}:
+            if specialist_display.lower() == "general practitioner":
+                return "General Practitioner"
+            article = "an" if specialist_display[:1].lower() in "aeiou" else "a"
+            return f"General Practitioner, who may refer you to {article} {specialist_display} if needed"
+        return specialist_display
+
+    def _format_specialist(self, specialist: str) -> str:
+        """Only snake_case fallback values (e.g. "general_practitioner") need reformatting.
+        Free text from the LLM (e.g. "Otolaryngologist (ENT)") is left alone: .title()-ing it
+        would lowercase every letter of "ENT" but the first, since title-case has no concept
+        of acronyms."""
+        specialist = (specialist or "general practitioner").strip()
+        if "_" in specialist:
+            specialist = specialist.replace("_", " ").title()
+        return specialist[:1].upper() + specialist[1:] if specialist else specialist
+
     async def _analyze_fallback(self, state: Dict[str, Any]) -> Dict[str, Any]:
         textual_analysis = state.get("textual_analysis", [])
         primary = textual_analysis[0] if textual_analysis else {
@@ -145,6 +169,7 @@ class OverallAnalysisNode:
             "user_explanation": "Analysis completed based on available symptom data.",
             "clinical_reasoning": "Systematic symptom analysis performed.",
             "specialist_recommendation": "general_practitioner",
+            "recommended_care_path": "General Practitioner",
         }
 
     def _fallback_analysis(self, state: Dict[str, Any]) -> Dict[str, Any]:
@@ -157,4 +182,5 @@ class OverallAnalysisNode:
             "user_explanation": "Unable to complete full analysis.",
             "clinical_reasoning": "Analysis encountered an error.",
             "specialist_recommendation": "general_practitioner",
+            "recommended_care_path": "General Practitioner",
         }
