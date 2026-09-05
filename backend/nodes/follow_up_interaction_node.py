@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 # "general"      → a fixed, condition-agnostic question set is always used.
 # Flip the default below, or override without touching code by setting the
 # FOLLOWUP_QUESTION_MODE environment variable (e.g. in backend/.env).
-QUESTION_MODE = os.getenv("FOLLOWUP_QUESTION_MODE", "general").lower()
+QUESTION_MODE = os.getenv("FOLLOWUP_QUESTION_MODE", "personalized").lower()
 # ──────────────────────────────────────────────────────────────────────────
 
 
@@ -74,7 +74,7 @@ class FollowUpInteractionNode:
         ]
 
         try:
-            output = await llm_client.complete(messages, max_tokens=300, temperature=0.3)
+            output = await llm_client.complete(messages, max_tokens=800, temperature=0.3)
             return self._parse_questions(output)
         except Exception as e:
             logger.error(f"Follow-up question generation failed: {e}")
@@ -110,7 +110,7 @@ class FollowUpInteractionNode:
                 ),
             },
         ]
-        output = await llm_client.complete(messages, max_tokens=300, temperature=0.1)
+        output = await llm_client.complete(messages, max_tokens=800, temperature=0.1)
 
         from nodes.llm_diagnosis_node import parse_diagnosis_details
         diagnosis_results = parse_diagnosis_details(output)

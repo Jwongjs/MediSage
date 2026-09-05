@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { AgentState } from 'types/medical';
-import { ApiService, DiagnosisRequest, PrivacyPolicyRequiredError } from 'services/api';
+import { ApiService, DiagnosisRequest } from 'services/api';
 
 interface DiagnosisState {
   loading: boolean;
@@ -11,7 +11,6 @@ interface DiagnosisState {
   sessionId: string | null;
   currentStage: string | null;
   workflowInfo: any | null;
-  privacyPolicyPending: (() => Promise<void>) | null;
 }
 
 export const useDiagnosis = () => {
@@ -22,7 +21,6 @@ export const useDiagnosis = () => {
     sessionId: null,
     currentStage: null,
     workflowInfo: null,
-    privacyPolicyPending: null,
   });
 
   //STATE ACCESSORS - prevent undefined errors
@@ -111,17 +109,6 @@ export const useDiagnosis = () => {
       return response;
 
     } catch (error) {
-      if (error instanceof PrivacyPolicyRequiredError) {
-        setState(prev => ({
-          ...prev,
-          loading: false,
-          privacyPolicyPending: async () => {
-            setState(p => ({ ...p, privacyPolicyPending: null }));
-            await startDiagnosis(request);
-          },
-        }));
-        return;
-      }
       const errorMessage = error instanceof Error ? error.message : 'Diagnosis failed';
       setState(prev => ({ ...prev, loading: false, error: errorMessage }));
       throw error;
@@ -159,17 +146,6 @@ export const useDiagnosis = () => {
       return response;
 
     } catch (error) {
-      if (error instanceof PrivacyPolicyRequiredError) {
-        setState(prev => ({
-          ...prev,
-          loading: false,
-          privacyPolicyPending: async () => {
-            setState(p => ({ ...p, privacyPolicyPending: null }));
-            await submitFollowUp(responses);
-          },
-        }));
-        return;
-      }
       const errorMessage = error instanceof Error ? error.message : 'Follow-up failed';
       setState(prev => ({ ...prev, loading: false, error: errorMessage }));
       throw error;
@@ -489,17 +465,6 @@ export const useDiagnosis = () => {
     runOverallAnalysis
   ]);
   
-  const handlePrivacyAccepted = useCallback(async () => {
-    await ApiService.acceptPrivacyPolicy();
-    if (state.privacyPolicyPending) {
-      await state.privacyPolicyPending();
-    }
-  }, [state.privacyPolicyPending]);
-
-  const dismissPrivacyModal = useCallback(() => {
-    setState(prev => ({ ...prev, privacyPolicyPending: null }));
-  }, []);
-
   // Reset diagnosis state
   const reset = useCallback(() => {
     setState({
@@ -509,7 +474,6 @@ export const useDiagnosis = () => {
       sessionId: null,
       currentStage: null,
       workflowInfo: null,
-      privacyPolicyPending: null,
     });
   }, []);
 
@@ -520,9 +484,6 @@ export const useDiagnosis = () => {
     sessionId: getSessionId(),
     currentStage: getCurrentStage(),
     workflowInfo: getWorkflowInfo(),
-    showPrivacyModal: !!state.privacyPolicyPending,
-    handlePrivacyAccepted,
-    dismissPrivacyModal,
     startDiagnosis,
     continueToNextStep,
     submitFollowUp,

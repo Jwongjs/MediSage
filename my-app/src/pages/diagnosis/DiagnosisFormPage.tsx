@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AgentState } from 'types/medical';
 import { DiagnosisProgress } from 'components/medical/DiagnosisProgress';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, AlertCircle, Stethoscope, ChevronRight } from 'lucide-react';
+import { Loader2, AlertCircle, Stethoscope, ChevronRight, ShieldCheck } from 'lucide-react';
 
 interface DiagnosisFormPageProps {
   onSubmit: (symptoms: string) => Promise<void>;
@@ -58,17 +58,28 @@ export const DiagnosisFormPage: React.FC<DiagnosisFormPageProps> = ({
                   <AlertDescription>{inputError}</AlertDescription>
                 </Alert>
               )}
-              <div className="space-y-1.5">
-                <Label htmlFor="symptoms">Your symptoms</Label>
-                <Textarea id="symptoms"
-                  placeholder="e.g. Persistent headache on the right side for 3 days with nausea and light sensitivity…"
-                  className="min-h-[120px] resize-none"
-                  value={symptoms} onChange={e => setSymptoms(e.target.value)}
-                  disabled={loading} required />
+              <Textarea id="symptoms"
+                placeholder="e.g. Persistent headache on the right side for 3 days with nausea and light sensitivity…"
+                className="min-h-[120px] resize-none"
+                value={symptoms} onChange={e => setSymptoms(e.target.value)}
+                disabled={loading} required />
+              <div className="bg-secondary/60 rounded-lg p-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Before you write
+                </p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  What you type is sent to an AI provider to build the differential. The report is
+                  stored in your account only if you choose to save it at the end. Do not include
+                  your name, ID number, or contact details. See our{' '}
+                  <Link to="/privacy" target="_blank" className="text-primary underline underline-offset-2">
+                    Privacy Policy
+                  </Link>{' '}and{' '}
+                  <Link to="/terms" target="_blank" className="text-primary underline underline-offset-2">
+                    Terms
+                  </Link>.
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Do not include personally identifying information such as your name or ID number.
-              </p>
               <Button type="submit" className="w-full" disabled={loading || !symptoms.trim()}>
                 {loading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Analysing…</> : 'Start diagnosis'}
               </Button>

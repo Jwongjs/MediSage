@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Form, HTTPException, Depends, Request, Response
+from fastapi import APIRouter, Form, HTTPException, Request, Response
 from typing import Optional
 import uuid
 from datetime import datetime
@@ -9,7 +9,6 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from schemas.medical_schemas import AgentState
-from api.auth_routes import require_privacy_policy
 
 diagnosis_router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -51,7 +50,7 @@ async def _get_workflow_info(graph, config: dict, state: dict) -> dict:
     }
 
 
-@diagnosis_router.post("/patient/textual_analysis", dependencies=[Depends(require_privacy_policy)])
+@diagnosis_router.post("/patient/textual_analysis")
 @limiter.limit("20/minute")
 async def run_textual_analysis(
     request: Request,
@@ -76,7 +75,7 @@ async def run_textual_analysis(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@diagnosis_router.post("/patient/followup_questions", dependencies=[Depends(require_privacy_policy)])
+@diagnosis_router.post("/patient/followup_questions")
 @limiter.limit("20/minute")
 async def run_followup_questions(
     request: Request,
@@ -100,7 +99,7 @@ async def run_followup_questions(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@diagnosis_router.post("/patient/overall_analysis", dependencies=[Depends(require_privacy_policy)])
+@diagnosis_router.post("/patient/overall_analysis")
 @limiter.limit("20/minute")
 async def run_overall_analysis(request: Request, session_id: str = Form(...)):
     config = {"configurable": {"thread_id": session_id}}
@@ -114,7 +113,7 @@ async def run_overall_analysis(request: Request, session_id: str = Form(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@diagnosis_router.post("/patient/medical_report", dependencies=[Depends(require_privacy_policy)])
+@diagnosis_router.post("/patient/medical_report")
 @limiter.limit("20/minute")
 async def run_medical_report(
     request: Request,
@@ -132,7 +131,7 @@ async def run_medical_report(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@diagnosis_router.post("/patient/export_report", dependencies=[Depends(require_privacy_policy)])
+@diagnosis_router.post("/patient/export_report")
 async def export_report_file(
     request: Request,
     session_id: str = Form(...),
@@ -181,7 +180,7 @@ async def debug_routes():
 
 
 @diagnosis_router.get("/health")
-async def health_check():
+async def health_check(request: Request):
     from config import settings
     health = {
         "status": "healthy",
@@ -192,8 +191,8 @@ async def health_check():
     }
 
     try:
-        from api.auth_routes import supabase
-        supabase.table("user_profiles").select("id").limit(1).execute()
+        async with request.app.state.db_pool.connection() as conn:
+            await conn.execute("SELECT 1")
         health["checks"]["database"] = "ok"
     except Exception as e:
         health["checks"]["database"] = f"error: {e}"

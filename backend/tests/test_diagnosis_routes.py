@@ -3,7 +3,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi import FastAPI
 from httpx import AsyncClient, ASGITransport
 
-FAKE_USER = {"id": "user-abc", "email": "test@example.com"}
+def _make_mock_pool(execute_side_effect=None):
+    """Stand in for the psycopg pool /health probes with `async with pool.connection()`."""
+    conn = AsyncMock()
+    conn.execute = AsyncMock(side_effect=execute_side_effect)
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=conn)
+    cm.__aexit__ = AsyncMock(return_value=False)
+    pool = MagicMock()
+    pool.connection = MagicMock(return_value=cm)
+    return pool
 
 
 def _make_mock_graph(next_nodes=None, state=None):
@@ -19,10 +28,8 @@ def _make_mock_graph(next_nodes=None, state=None):
 @pytest.fixture
 def diag_app():
     from api.diagnosis_routes import diagnosis_router
-    from api.auth_routes import require_privacy_policy
 
     app = FastAPI()
-    app.dependency_overrides[require_privacy_policy] = lambda: None
     app.include_router(diagnosis_router)
 
     return app
@@ -32,9 +39,8 @@ def diag_app():
 async def test_health_returns_healthy_when_probes_pass(diag_app):
     # Task 7: /health actively probes the DB and LLM. Mock both so they
     # succeed and the endpoint reports "healthy".
-    with patch("api.auth_routes.supabase") as mock_supabase, \
-         patch("llm.client.llm_client.complete", new_callable=AsyncMock):
-        mock_supabase.table.return_value.select.return_value.limit.return_value.execute.return_value = MagicMock()
+    diag_app.state.db_pool = _make_mock_pool()
+    with patch("llm.client.llm_client.complete", new_callable=AsyncMock):
         async with AsyncClient(transport=ASGITransport(app=diag_app), base_url="http://test") as client:
             response = await client.get("/health")
 
@@ -48,9 +54,8 @@ async def test_health_returns_healthy_when_probes_pass(diag_app):
 async def test_health_returns_degraded_when_db_probe_fails(diag_app):
     # When a dependency is unreachable the status drops to "degraded" but the
     # endpoint still returns 200 so load balancers get a body to inspect.
-    with patch("api.auth_routes.supabase") as mock_supabase, \
-         patch("llm.client.llm_client.complete", new_callable=AsyncMock):
-        mock_supabase.table.side_effect = RuntimeError("db down")
+    diag_app.state.db_pool = _make_mock_pool(execute_side_effect=RuntimeError("db down"))
+    with patch("llm.client.llm_client.complete", new_callable=AsyncMock):
         async with AsyncClient(transport=ASGITransport(app=diag_app), base_url="http://test") as client:
             response = await client.get("/health")
 
@@ -163,32 +168,3 @@ async def test_medical_report_completes_without_auto_ingestion(diag_app):
     data = response.json()
     assert data["success"] is True
     assert data["workflow_info"]["workflow_complete"] is True
-
-
-@pytest.fixture
-def auth_app():
-    from api.auth_routes import router as auth_router
-
-    app = FastAPI()
-    app.include_router(auth_router)
-    return app
-
-
-@pytest.mark.asyncio
-async def test_save_report_triggers_background_ingestion(auth_app):
-    import json
-    agent_state = json.dumps({"session_id": "s-001", "medical_report": "Full report text here."})
-
-    with patch("api.auth_routes.get_current_user", return_value=FAKE_USER), \
-         patch("api.auth_routes.report_node") as mock_node, \
-         patch("api.auth_routes._ingest_report_background", new_callable=AsyncMock) as mock_ingest:
-        mock_node.save_medical_report_to_database = AsyncMock(return_value={"id": "r-001"})
-        async with AsyncClient(transport=ASGITransport(app=auth_app), base_url="http://test") as client:
-            response = await client.post(
-                "/auth/patient/save-medical-report",
-                data={"session_id": "s-001", "agent_state": agent_state},
-            )
-
-    assert response.status_code == 200
-    assert response.json()["report_id"] == "r-001"
-    mock_ingest.assert_called_once_with("user-abc", "s-001", "Full report text here.")

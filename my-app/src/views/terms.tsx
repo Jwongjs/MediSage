@@ -15,7 +15,7 @@ const TermsPage: React.FC = () => (
   <PageLayout>
     <div className="container mx-auto max-w-3xl px-4 py-12 space-y-8">
       <header className="space-y-2">
-        <h1 className="font-display text-4xl font-normal">Terms of Service</h1>
+        <h1 className="font-display text-4xl font-medium">Terms of Service</h1>
         <p className="text-sm text-muted-foreground">Last updated: 12 June 2026</p>
       </header>
 
@@ -23,8 +23,8 @@ const TermsPage: React.FC = () => (
 
       <Section title="1. Acceptance of these terms">
         <p>
-          These Terms of Service ("Terms") govern your use of MediSage (the "Service"). By creating
-          an account or using the Service, you confirm that you have read, understood, and agree to
+          These Terms of Service ("Terms") govern your use of MediSage (the "Service"). By using
+          the Service, you confirm that you have read, understood, and agree to
           be bound by these Terms and by our{' '}
           <Link to="/privacy" className="text-primary underline underline-offset-2">Privacy Policy</Link>.
           If you do not agree, do not use the Service.
@@ -57,8 +57,7 @@ const TermsPage: React.FC = () => (
       <Section title="4. Eligibility">
         <p>
           You must be at least 18 years old, or use the Service under the supervision of a parent or
-          legal guardian who accepts these Terms on your behalf. You are responsible for providing
-          accurate account information.
+          legal guardian who accepts these Terms on your behalf.
         </p>
       </Section>
 
@@ -86,12 +85,12 @@ const TermsPage: React.FC = () => (
         </p>
       </Section>
 
-      <Section title="7. Your data and saved reports">
+      <Section title="7. Your data and reports">
         <p>
           Our handling of your personal and health data is described in the{' '}
           <Link to="/privacy" className="text-primary underline underline-offset-2">Privacy Policy</Link>.
-          Diagnostic reports are stored only when you explicitly choose to save them, and you may
-          delete them from your profile at any time.
+          The Service has no user accounts. Your report is generated for your session and downloaded
+          to your own device; keeping it is your responsibility.
         </p>
       </Section>
 

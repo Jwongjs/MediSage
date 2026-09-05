@@ -23,7 +23,6 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from api.diagnosis_routes import diagnosis_router, limiter
-from api.auth_routes import router as auth_router
 from config import settings
 
 if settings.APP_ENV == "production":
@@ -82,16 +81,12 @@ async def lifespan(app: FastAPI):
         check=AsyncConnectionPool.check_connection,
         open=False,
     ) as pool:
+        app.state.db_pool = pool
         checkpointer = AsyncPostgresSaver(pool)
         await checkpointer.setup()
         from graphs.patient_workflow import compile_patient_workflow
         app.state.patient_graph = compile_patient_workflow(checkpointer)
         logger.info("Patient workflow graph compiled with Supabase checkpointer")
-        from graphs.rag_chatbot import compile_rag_chatbot
-        from api.chat_routes import chat_router
-        app.state.rag_graph = compile_rag_chatbot()
-        app.include_router(chat_router)
-        logger.info("RAG chatbot graph compiled")
         logger.info("Startup complete!")
         yield
 
@@ -119,7 +114,6 @@ app.add_middleware(
 )
 
 app.include_router(diagnosis_router)
-app.include_router(auth_router)
 
 
 @app.get("/")

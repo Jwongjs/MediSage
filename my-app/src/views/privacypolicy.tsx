@@ -14,7 +14,7 @@ const PrivacyPolicyPage: React.FC = () => (
   <PageLayout>
     <div className="container mx-auto max-w-3xl px-4 py-12 space-y-8">
       <header className="space-y-2">
-        <h1 className="font-display text-4xl font-normal">Privacy Policy</h1>
+        <h1 className="font-display text-4xl font-medium">Privacy Policy</h1>
         <p className="text-sm text-muted-foreground">Last updated: 12 June 2026</p>
       </header>
 
@@ -34,18 +34,19 @@ const PrivacyPolicyPage: React.FC = () => (
       </Section>
 
       <Section title="2. Information we collect">
-        <p><strong className="text-foreground">Account information</strong> — your email address, age, and gender, provided when you register.</p>
         <p><strong className="text-foreground">Health information you submit</strong> — symptom descriptions and follow-up answers you enter when requesting diagnostic suggestions.</p>
-        <p><strong className="text-foreground">Diagnostic reports</strong> — generated reports are stored in your account <em>only when you choose to save them</em>. You can view and delete them from your profile at any time.</p>
-        <p><strong className="text-foreground">Technical data</strong> — an authentication cookie (httpOnly) used to keep you signed in. We do not use advertising or cross-site tracking cookies.</p>
+        <p><strong className="text-foreground">Session state</strong> — your answers and the generated analysis are held against a randomly generated session identifier so the assessment can move from one step to the next. The session is not linked to any account, and we do not ask for your name, email, or contact details.</p>
+        <p><strong className="text-foreground">Diagnostic reports</strong> — the report is generated for your session and downloaded to your own device. We do not keep a copy in an account, because MediSage has no accounts.</p>
+        <p><strong className="text-foreground">Technical data</strong> — we do not use advertising or cross-site tracking cookies.</p>
       </Section>
 
       <Section title="3. Health data is special category data">
         <p>
           Health-related information is special category personal data under Article 9 of the
           GDPR and sensitive personal data under Malaysia's Personal Data Protection Act 2010.
-          We process it only with your explicit consent, which we ask for before your first
-          assessment and which you may withdraw at any time.
+          We process it on the basis of your explicit consent, given when you submit symptoms
+          for assessment. You may withdraw that consent at any time by stopping use of the
+          Service and contacting us to request deletion of the session data described above.
         </p>
       </Section>
 
@@ -53,8 +54,7 @@ const PrivacyPolicyPage: React.FC = () => (
         <p>We use the data you provide to:</p>
         <ul className="list-disc pl-5 space-y-1.5">
           <li>generate differential-diagnosis suggestions and follow-up questions;</li>
-          <li>answer your questions in the history chat, using only your saved reports;</li>
-          <li>maintain your account and session.</li>
+          <li>carry your answers between the steps of a single assessment.</li>
         </ul>
         <p>
           We do not sell, rent, or share your personal data with third parties for marketing
@@ -66,7 +66,7 @@ const PrivacyPolicyPage: React.FC = () => (
         <p>To provide the service, your data is processed by:</p>
         <ul className="list-disc pl-5 space-y-1.5">
           <li><strong className="text-foreground">Groq</strong> — symptom text is sent to Groq's AI infrastructure to generate diagnostic suggestions;</li>
-          <li><strong className="text-foreground">Supabase</strong> — authentication and encrypted storage of your account and saved reports.</li>
+          <li><strong className="text-foreground">Supabase</strong> — encrypted database storage of assessment session state.</li>
         </ul>
         <p>
           Because symptom text is processed by an AI provider, do not include personally
@@ -77,9 +77,10 @@ const PrivacyPolicyPage: React.FC = () => (
 
       <Section title="6. Security and retention">
         <p>
-          Data is encrypted in transit (TLS) and at rest. Authentication uses httpOnly
-          cookies. Saved reports are retained until you delete them from your profile;
-          account deletion can be requested by email and is processed without undue delay.
+          Data is encrypted in transit (TLS) and at rest. Because there are no accounts,
+          the only data we hold is the session state described in section 2, retained so an
+          in-progress assessment can be completed. Deletion of a session's data can be
+          requested by email and is processed without undue delay.
         </p>
       </Section>
 
@@ -92,7 +93,7 @@ const PrivacyPolicyPage: React.FC = () => (
           <li>withdraw consent at any time, without affecting prior lawful processing;</li>
           <li>lodge a complaint with your local supervisory authority.</li>
         </ul>
-        <p>You can exercise these rights from your profile page or by contacting us by email.</p>
+        <p>You can exercise these rights by contacting us by email.</p>
       </Section>
 
       <Section title="8. Not medical advice">

@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { AgentState } from 'types/medical';
 import { DiagnosisProgress } from 'components/medical/DiagnosisProgress';
-import { useAuth } from 'contexts/AuthContext';
-import { MedicalReportService } from 'services/report';
+import { ApiService } from 'services/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Loader2, FileText, RotateCcw, AlertTriangle, Save, CheckCircle2 } from 'lucide-react';
+import {
+  Loader2, FileText, RotateCcw, AlertTriangle,
+  Download, FileType, AlertCircle,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface FinalReportPageProps {
@@ -20,23 +20,29 @@ interface FinalReportPageProps {
   onReset: () => void;
 }
 
+// An unmatched severity falls back to `severity-unknown`, never `severity-mild`:
+// the model can answer outside the documented scale, and styling an unrecognised
+// value as mild would fail toward reassurance.
 const SEVERITY_CLASS: Record<string, string> = {
   mild:      'severity-mild',
   moderate:  'severity-moderate',
   severe:    'severity-severe',
   critical:  'severity-critical',
   emergency: 'severity-critical',
+  unknown:   'severity-unknown',
 };
+
+type ExportFormat = 'pdf' | 'word';
+
+const EXPORT_EXTENSION: Record<ExportFormat, string> = { pdf: 'pdf', word: 'docx' };
 
 export const FinalReportPage: React.FC<FinalReportPageProps> = ({
   workflowState, loading, onReset,
 }) => {
-  const { loggedIn } = useAuth();
   const [reportOpen, setReportOpen] = useState(false);
-  const [saveOpen, setSaveOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  // Which format is in flight, so only that button spins while both disable.
+  const [exporting, setExporting] = useState<ExportFormat | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   if (loading || !workflowState?.overall_analysis) {
     return (
@@ -59,17 +65,27 @@ export const FinalReportPage: React.FC<FinalReportPageProps> = ({
     ? workflowState.followup_diagnosis!.slice(1, 4)
     : (workflowState.textual_analysis ?? []).slice(1, 4);
 
-  const handleSave = async () => {
-    setSaving(true);
-    setSaveError(null);
+  const handleExport = async (format: ExportFormat) => {
+    setExporting(format);
+    setExportError(null);
     try {
-      await MedicalReportService.saveMedicalReport(workflowState.session_id, workflowState);
-      setSaved(true);
-      setSaveOpen(false);
-    } catch (e) {
-      setSaveError(e instanceof Error ? e.message : 'Failed to save report');
+      const blob = await ApiService.exportMedicalReport(
+        workflowState.session_id, format, workflowState,
+      );
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `medisage-report-${new Date().toISOString().slice(0, 10)}.${EXPORT_EXTENSION[format]}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setExportError(
+        error instanceof Error ? error.message : 'Could not build the file. Please try again.'
+      );
     } finally {
-      setSaving(false);
+      setExporting(null);
     }
   };
 
@@ -94,7 +110,7 @@ export const FinalReportPage: React.FC<FinalReportPageProps> = ({
               <CardDescription className="text-xs mb-1">Primary diagnosis</CardDescription>
               <CardTitle className="text-xl">{analysis.final_diagnosis}</CardTitle>
             </div>
-            <Badge className={cn('text-xs', SEVERITY_CLASS[severity] ?? SEVERITY_CLASS.mild)}>
+            <Badge className={cn('text-xs', SEVERITY_CLASS[severity] ?? SEVERITY_CLASS.unknown)}>
               {severity.charAt(0).toUpperCase() + severity.slice(1)}
             </Badge>
           </div>
@@ -148,16 +164,55 @@ export const FinalReportPage: React.FC<FinalReportPageProps> = ({
         </Card>
       )}
 
+      <Card className="shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Download className="h-5 w-5 text-primary" />
+            <CardTitle className="text-base">Take this with you</CardTitle>
+          </div>
+          <CardDescription>
+            Download this session's report for you or your healthcare provider's reference.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {exportError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{exportError}</AlertDescription>
+            </Alert>
+          )}
+          <div className="bg-secondary/60 rounded-lg p-4 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Download format
+            </p>
+            <div className="flex gap-3 flex-wrap">
+              <Button
+                className="gap-2 flex-1"
+                disabled={exporting !== null}
+                onClick={() => handleExport('pdf')}
+              >
+                {exporting === 'pdf'
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <FileText className="h-4 w-4" />}
+                PDF
+              </Button>
+              <Button
+                variant="outline"
+                className="gap-2 flex-1"
+                disabled={exporting !== null}
+                onClick={() => handleExport('word')}
+              >
+                {exporting === 'word'
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <FileType className="h-4 w-4" />}
+                Word
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="flex flex-col sm:flex-row gap-3">
-        {loggedIn && (saved ? (
-          <Button variant="outline" className="gap-2 flex-1 text-primary border-primary/40" disabled>
-            <CheckCircle2 className="h-4 w-4" />Saved to profile
-          </Button>
-        ) : (
-          <Button className="gap-2 flex-1" onClick={() => setSaveOpen(true)}>
-            <Save className="h-4 w-4" />Save to my account
-          </Button>
-        ))}
         {workflowState.medical_report && (
           <Button variant="outline" className="gap-2 flex-1" onClick={() => setReportOpen(r => !r)}>
             <FileText className="h-4 w-4" />{reportOpen ? 'Hide' : 'View'} full report
@@ -167,36 +222,6 @@ export const FinalReportPage: React.FC<FinalReportPageProps> = ({
           <RotateCcw className="h-4 w-4" />New diagnosis
         </Button>
       </div>
-
-      <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Save this report to your account?</DialogTitle>
-            <DialogDescription className="leading-relaxed">
-              Saving stores this report — your symptom descriptions, the AI analysis, and its
-              recommendations — as health data in your encrypted MediSage account.
-            </DialogDescription>
-          </DialogHeader>
-          <ul className="text-sm text-muted-foreground space-y-2 list-disc pl-5">
-            <li>It stays in your profile until you delete it — deletion is permanent.</li>
-            <li>The chat assistant will use saved reports to answer your questions.</li>
-            <li>
-              See the{' '}
-              <Link to="/privacy" target="_blank" className="text-primary underline underline-offset-2">
-                Privacy Policy
-              </Link>{' '}
-              for how health data is handled.
-            </li>
-          </ul>
-          {saveError && <p className="text-sm text-destructive">{saveError}</p>}
-          <DialogFooter className="gap-2 sm:gap-2">
-            <Button variant="outline" onClick={() => setSaveOpen(false)} disabled={saving}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving} className="gap-2">
-              {saving ? <><Loader2 className="h-4 w-4 animate-spin" />Saving…</> : 'I understand — save report'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {reportOpen && workflowState.medical_report && (
         <Card className="shadow-sm">

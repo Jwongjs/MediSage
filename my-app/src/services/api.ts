@@ -1,4 +1,4 @@
-// Empty in dev: Vite proxies /auth, /patient, /chat, /health to localhost:8000.
+// Empty in dev: Vite proxies /patient and /health to localhost:8000.
 // In production (separate frontend/backend domains) set VITE_API_URL to the
 // backend's URL so these calls are absolute instead of same-origin.
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -7,13 +7,6 @@ export interface DiagnosisRequest {
   symptoms: string;
   image?: File;
   location?: { lat: number; lng: number };
-}
-
-export class PrivacyPolicyRequiredError extends Error {
-  constructor() {
-    super('privacy_policy_required');
-    this.name = 'PrivacyPolicyRequiredError';
-  }
 }
 
 export class ApiService {
@@ -67,13 +60,6 @@ export class ApiService {
       console.log('  Response Type:', response.type);
       console.log('  Response Headers:', Object.fromEntries(response.headers.entries()));
 
-      if (response.status === 403) {
-        const body = await response.json().catch(() => ({}));
-        if (body.detail === 'privacy_policy_required') {
-          throw new PrivacyPolicyRequiredError();
-        }
-      }
-
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Textual analysis failed: HTTP ${response.status} - ${errorText}`);
@@ -108,13 +94,6 @@ export class ApiService {
         body: formData
       });
 
-      if (response.status === 403) {
-        const body = await response.json().catch(() => ({}));
-        if (body.detail === 'privacy_policy_required') {
-          throw new PrivacyPolicyRequiredError();
-        }
-      }
-
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Follow-up questions failed: HTTP ${response.status} - ${errorText}`);
@@ -141,13 +120,6 @@ export class ApiService {
         credentials: 'include',
         body: formData
       });
-
-      if (response.status === 403) {
-        const body = await response.json().catch(() => ({}));
-        if (body.detail === 'privacy_policy_required') {
-          throw new PrivacyPolicyRequiredError();
-        }
-      }
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -176,13 +148,6 @@ export class ApiService {
         body: formData
       });
 
-      if (response.status === 403) {
-        const body = await response.json().catch(() => ({}));
-        if (body.detail === 'privacy_policy_required') {
-          throw new PrivacyPolicyRequiredError();
-        }
-      }
-
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Medical report failed: HTTP ${response.status} - ${errorText}`);
@@ -196,34 +161,6 @@ export class ApiService {
     }
   }
   
-  static async askChat(
-    query: string,
-    conversationHistory: Array<{ role: string; content: string }> = []
-  ): Promise<{ answer: string; sources: string[] }> {
-    const response = await fetch(`${API_BASE_URL}/chat/ask`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ query, conversation_history: conversationHistory }),
-    });
-    if (response.status === 403) {
-      const body = await response.json().catch(() => ({}));
-      if (body.detail === 'privacy_policy_required') throw new PrivacyPolicyRequiredError();
-    }
-    if (!response.ok) throw new Error(`Chat failed: HTTP ${response.status}`);
-    return response.json();
-  }
-
-  static async acceptPrivacyPolicy(): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/auth/accept-privacy-policy`, {
-      method: 'PATCH',
-      credentials: 'include',
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to accept privacy policy: HTTP ${response.status}`);
-    }
-  }
-
     //PDF/Word generation
   static async exportMedicalReport(
     sessionId: string, 
@@ -242,7 +179,8 @@ export class ApiService {
 
       const response = await fetch(`${API_BASE_URL}/patient/export_report`, {
         method: 'POST',
-        body: formData
+        body: formData,
+        credentials: 'include'
       });
 
       if (!response.ok) {

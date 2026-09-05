@@ -71,7 +71,7 @@ class OverallAnalysisNode:
             },
         ]
 
-        assessment_text = await llm_client.complete(messages, max_tokens=400, temperature=0.3)
+        assessment_text = await llm_client.complete(messages, max_tokens=1000, temperature=0.3)
         return self._parse_enhanced_analysis(assessment_text, primary_diagnosis)
     
     async def _analyze_textual_and_followup(self, state: Dict[str, Any]) -> Dict[str, Any]:
@@ -103,7 +103,7 @@ class OverallAnalysisNode:
             },
         ]
 
-        assessment_text = await llm_client.complete(messages, max_tokens=400, temperature=0.3)
+        assessment_text = await llm_client.complete(messages, max_tokens=1000, temperature=0.3)
         return self._parse_enhanced_analysis(assessment_text, enhanced_diagnosis)
     
     def _parse_enhanced_analysis(self, assessment_text: str, primary_diagnosis: dict) -> Dict[str, Any]:

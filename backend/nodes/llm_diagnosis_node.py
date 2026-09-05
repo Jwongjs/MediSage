@@ -69,7 +69,7 @@ class LLMDiagnosisNode:
             },
         ]
 
-        output = await llm_client.complete(messages, max_tokens=300, temperature=0.1)
+        output = await llm_client.complete(messages, max_tokens=800, temperature=0.1)
         parsed_diagnosis = parse_diagnosis_details(output)
 
         state["textual_analysis"] = parsed_diagnosis

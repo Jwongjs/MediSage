@@ -17,9 +17,7 @@ export default defineConfig({
     port: 3000,
     open: false,
     proxy: {
-      '/auth': 'http://localhost:8000',
       '/patient': 'http://localhost:8000',
-      '/chat': 'http://localhost:8000',
       '/health': 'http://localhost:8000',
     },
   },

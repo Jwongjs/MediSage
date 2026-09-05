@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any
 from llm.client import llm_client
 import json
 from datetime import datetime
@@ -13,32 +13,11 @@ from reportlab.lib.styles import getSampleStyleSheet
 from docx import Document
 from io import BytesIO
 
-# Database imports
-from supabase import Client
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
 logger = logging.getLogger(__name__)
 
 class MedicalReportNode:
-    def __init__(self, supabase_client: Optional[Client] = None):
-        # Initialize Supabase client for database operations
-        if supabase_client:
-            self.supabase = supabase_client
-        else:
-            # Create client if not provided
-            url = os.getenv("SUPABASE_URL")
-            key = os.getenv("SUPABASE_API_KEY")
-            if url and key:
-                from supabase import create_client
-                self.supabase = create_client(url, key)
-            else:
-                self.supabase = None
-                logger.warning("Supabase credentials not found - database features disabled")
-    
     async def __call__(self, state: dict) -> dict:
-        """Generate medical report content and optionally save to database"""
+        """Generate medical report content"""
         logger.info("Medical report node called")
         
         # Set stage when node starts
@@ -76,163 +55,6 @@ class MedicalReportNode:
             state["medical_report"] = self._generate_fallback_report(state)
             return state
 
-    # ================================
-    # DATABASE STORAGE METHODS
-    # ================================
-    
-    async def save_medical_report_to_database(
-        self, 
-        user_id: str, 
-        session_id: str, 
-        agent_state: Dict[str, Any],
-        report_title: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Save a complete medical report to the database"""
-        
-        if not self.supabase:
-            raise Exception("Database not configured - Supabase client not available")
-        
-        try:
-            # Extract data from agent state
-            report_data = {
-                "user_id": user_id,
-                "session_id": session_id,
-                "report_title": report_title or f"Medical Report - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
-                "patient_symptoms": agent_state.get("userInput_symptoms"),
-                "textual_analysis": agent_state.get("textual_analysis"),
-                "followup_data": {
-                    "questions": agent_state.get("followup_questions"),
-                    "responses": agent_state.get("followup_response"),
-                    "qna_overall": agent_state.get("followup_qna_overall"),
-                    "diagnosis": agent_state.get("followup_diagnosis")
-                } if agent_state.get("followup_questions") else None,
-                "image_analysis": agent_state.get("skin_lesion_analysis"),
-                "overall_analysis": agent_state.get("overall_analysis"),
-                "healthcare_recommendations": agent_state.get("healthcare_recommendation"),
-                "medical_report_content": agent_state.get("medical_report"),
-                "workflow_path": agent_state.get("workflow_path"),
-                "workflow_stages_completed": agent_state.get("current_workflow_stage"),
-                "confidence_scores": {
-                    "average_confidence": agent_state.get("average_confidence"),
-                    "final_confidence": agent_state.get("overall_analysis", {}).get("final_confidence") if agent_state.get("overall_analysis") else None
-                }
-            }
-            
-            # Remove None values
-            report_data = {k: v for k, v in report_data.items() if v is not None}
-            
-            # Insert into database
-            result = self.supabase.table("medical_reports").insert(report_data).execute()
-            
-            if result.data:
-                logger.info(f"Medical report saved successfully for user {user_id}, session {session_id}")
-                return result.data[0]
-            else:
-                raise Exception("Failed to save medical report")
-                
-        except Exception as e:
-            logger.error(f"Error saving medical report: {e}")
-            raise e
-    
-    async def get_user_medical_reports(
-        self, 
-        user_id: str, 
-        limit: int = 10, 
-        offset: int = 0
-    ) -> List[Dict[str, Any]]:
-        """Get all medical reports for a user"""
-        
-        if not self.supabase:
-            raise Exception("Database not configured")
-        
-        try:
-            result = self.supabase.table("medical_reports")\
-                .select("*")\
-                .eq("user_id", user_id)\
-                .order("created_at", desc=True)\
-                .range(offset, offset + limit - 1)\
-                .execute()
-            
-            return result.data or []
-            
-        except Exception as e:
-            logger.error(f"Error fetching medical reports: {e}")
-            raise e
-    
-    async def get_medical_report_by_id(
-        self, 
-        report_id: str, 
-        user_id: str
-    ) -> Optional[Dict[str, Any]]:
-        """Get a specific medical report by ID"""
-        
-        if not self.supabase:
-            raise Exception("Database not configured")
-        
-        try:
-            result = self.supabase.table("medical_reports")\
-                .select("*")\
-                .eq("id", report_id)\
-                .eq("user_id", user_id)\
-                .execute()
-            
-            return result.data[0] if result.data else None
-            
-        except Exception as e:
-            logger.error(f"Error fetching medical report: {e}")
-            raise e
-    
-    async def delete_medical_report(
-        self, 
-        report_id: str, 
-        user_id: str
-    ) -> bool:
-        """Delete a medical report"""
-        
-        if not self.supabase:
-            raise Exception("Database not configured")
-        
-        try:
-            result = self.supabase.table("medical_reports")\
-                .delete()\
-                .eq("id", report_id)\
-                .eq("user_id", user_id)\
-                .execute()
-            
-            return bool(result.data)
-            
-        except Exception as e:
-            logger.error(f"Error deleting medical report: {e}")
-            raise e
-
-    async def update_report_title(
-        self, 
-        report_id: str, 
-        user_id: str, 
-        new_title: str
-    ) -> Dict[str, Any]:
-        """Update medical report title"""
-        
-        if not self.supabase:
-            raise Exception("Database not configured")
-        
-        try:
-            result = self.supabase.table("medical_reports")\
-                .update({"report_title": new_title})\
-                .eq("id", report_id)\
-                .eq("user_id", user_id)\
-                .execute()
-            
-            return result.data[0] if result.data else None
-            
-        except Exception as e:
-            logger.error(f"Error updating medical report title: {e}")
-            raise e
-
-    # ================================
-    # EXISTING METHODS (unchanged)
-    # ================================
-    
     async def _generate_followup_guidance(self, state: Dict[str, Any]) -> Dict[str, str]:
         """Generate only the content that needs LLM creativity"""
         
@@ -258,7 +80,7 @@ class MedicalReportNode:
     Keep each section under 30 words."""
     
         followup_guidance = await llm_client.complete(
-            [{"role": "user", "content": followup_prompt}], max_tokens=200, temperature=0.2
+            [{"role": "user", "content": followup_prompt}], max_tokens=1000, temperature=0.2
         )
         
         return {
@@ -457,7 +279,7 @@ ACCURACY CONSIDERATIONS:
 • Second opinions are recommended for complex medical cases
 
 ═══════════════════════════════════════════════════════════════════
-Report generated by Llama 3.1 8B UltraMedical (8-bit Quantization GGUF)
+Report generated by GPT OSS 120b
 Session: {session_id} | Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 ═══════════════════════════════════════════════════════════════════
 """

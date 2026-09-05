@@ -47,7 +47,7 @@ export default {
         sm: 'calc(var(--radius) - 4px)',
       },
       fontFamily: {
-        display: ['"Instrument Serif"', 'Georgia', 'serif'],
+        display: ['"Fraunces"', 'Georgia', 'serif'],
         sans: ['"DM Sans"', 'system-ui', 'sans-serif'],
       },
       keyframes: {
