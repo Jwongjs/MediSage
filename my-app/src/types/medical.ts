@@ -27,8 +27,9 @@ export interface OverallAnalysisResult {
   final_confidence: number;
   final_severity: string;  // mild/moderate/severe/critical/emergency
   user_explanation: string;
-  clinical_reasoning: string; 
+  clinical_reasoning: string;
   specialist_recommendation: string; // For Google Maps integration
+  recommended_care_path: string; // General practitioner (mild/moderate) or the specialist directly (severe/critical)
 }
 
 // Matches HealthcareRecommendationResult exactly
@@ -59,6 +60,7 @@ export interface AgentState {
   // STAGE 1: Textual Symptom Analysis
   userInput_symptoms?: string | null;
   textual_analysis?: TextualSymptomAnalysisResult[] | null;
+  initial_diagnosis_reasoning?: string | null;
   average_confidence?: number | null;
   
   // Follow-up stage (if required based on confidence)

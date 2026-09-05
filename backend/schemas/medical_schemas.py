@@ -61,9 +61,10 @@ class OverallAnalysisResult(TypedDict):
 
     user_explanation: str           # Simple explanation for patients (low health literacy)
     clinical_reasoning: str         # Technical LLM justification with factors
-    
+
     specialist_recommendation: str
-    
+    recommended_care_path: str      # General practitioner (mild/moderate) or the specialist directly (severe/critical)
+
 # class HealthcareRecommendationResult(TypedDict):
 #     recommendation_type: str              
 #     self_care_advice: Optional[List[str]]
@@ -88,9 +89,10 @@ class AgentState(TypedDict, total=False):
     average_confidence: float | None # Average confidence score across all diagnoses for textual analysis and follow-up diagnosis
 
     
-    #STAGE 1: Textual Symptom Analysis 
+    #STAGE 1: Textual Symptom Analysis
     userInput_symptoms: str | None #Used to store user input of their symptoms to be used as a value with textual_analysis for overall analysis
-    textual_analysis: list[TextualSymptomAnalysisResult] | None 
+    textual_analysis: list[TextualSymptomAnalysisResult] | None
+    initial_diagnosis_reasoning: str | None # Brief rationale for the top initial diagnosis
 
     #Follow-up stage (if required based on confidence)
     followup_type: Literal["standard"] | None
